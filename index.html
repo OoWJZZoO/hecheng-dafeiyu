@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>合成大肥鱼</title>
+<link rel="icon" href="sprites/t11.png">
+<style>
+  html,body{margin:0;height:100%;background:#2b1d16;overflow:hidden;touch-action:none;
+    font-family:"Microsoft YaHei","PingFang SC","Noto Sans CJK SC",sans-serif;user-select:none;-webkit-user-select:none}
+  #wrap{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%)}
+  /* 构图外面的背景（game.js syncBackdrop）：铺满整个窗口，垫在 #wrap 下面 */
+  #backdrop{position:fixed;left:0;top:0;width:100%;height:100%}
+  canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges}
+  img.pix{display:block;image-rendering:pixelated;image-rendering:crisp-edges;pointer-events:none}
+  .smooth canvas,.smooth img.pix{image-rendering:auto}
+  .smooth img.pix.crisp{image-rendering:pixelated;image-rendering:crisp-edges}
+  /* 所有界面在 360×704（2026-11-13 加高，原 360×640）的逻辑坐标里排，整体按画布同样的倍数缩放；一个美术像素 = 2 逻辑像素 */
+  #ui{position:absolute;left:0;top:0;width:360px;height:704px;transform-origin:0 0;pointer-events:none}
+  .ov.show{pointer-events:auto}
+  .ov{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;
+    color:#fff6e0;text-align:center;z-index:0}
+  /* 遮罩底色画在伸出去很远的 ::before 上，铺满整个窗口（构图外面露出来的背景一起压暗，只有一层，边缘没有接缝） */
+  .ov::before{content:"";position:absolute;inset:-4000px;background:rgba(43,29,22,.62);z-index:-1;pointer-events:none}
+  .ov.show{display:flex}
+  /* 像素框：没有圆角，四角各缺一格，底边加厚当投影 */
+  .px{--o:#4a2e20;
+    box-shadow:0 -2px 0 0 var(--o),0 2px 0 0 var(--o),-2px 0 0 0 var(--o),2px 0 0 0 var(--o),
+      0 6px 0 0 var(--o),inset 0 -2px 0 0 var(--lo,transparent),inset 0 2px 0 0 var(--hi,transparent)}
+  .card{background:#fff6e0;--hi:#fffdf4;--lo:#ead9b6;color:#4a2e20;
+    padding:12px 14px 14px;width:268px;max-height:72%;overflow:auto;margin:10px 0 14px;
+    background-image:linear-gradient(#f2e4c6 2px,transparent 2px);background-size:100% 8px;background-position:0 6px}
+  .title{margin:0 0 4px;animation:bob 1.2s steps(2) infinite}
+  @keyframes bob{50%{transform:translateY(-2px)}}
+  .sub-title{margin:0 0 6px}
+  .title img,.sub-title img,.h2 img,.btn img{margin:0 auto}
+  .h2{margin:2px 0 8px;display:flex;justify-content:center}
+  p{margin:6px 0;font-size:13px;line-height:1.55}
+  .btns{display:flex;gap:14px;justify-content:center;align-items:flex-start;margin-top:4px;position:relative}   /* position:relative 给教程回看的按钮行锚定用（top 位移，不影响卡片布局） */
+  .btn{display:flex;align-items:center;justify-content:center;cursor:pointer;
+    background:#ffd25e;--hi:#ffeaa0;--lo:#e8a93a;padding:8px 18px 9px;min-width:56px;position:relative;top:0}
+  .btn.sub{background:#e9dcc4;--hi:#fbf3e2;--lo:#cdbb98;padding:6px 10px 7px;min-width:0;margin-top:2px}
+  /* 悬停：只把底色提亮一档。不要用 filter:brightness（会把整个按钮重新栅格化，里面的像素字图片会被重采样，
+     字形变样/抖动——2026-11-11 用户发现开始按钮悬停时字会变） */
+  .btn:hover{background:#ffe07a}
+  .btn:active{top:4px;box-shadow:0 -2px 0 0 var(--o),0 2px 0 0 var(--o),-2px 0 0 0 var(--o),2px 0 0 0 var(--o),inset 0 2px 0 0 var(--lo)}
+  /* 按下时按钮整体下移 4px（视觉），但判定区不能跟着走：在被移走的上方 4px 补一块透明热区，
+     这样手指/鼠标还停在原来的位置，pointerup 仍落在按钮上，click 不会被判成移出而作废。 */
+  .btn:active::after,#hud .icon:active::after,.icon.corner:active::after,#dexGrid .flip .icon:active::after{
+    content:"";position:absolute;left:0;right:0;top:-4px;height:4px}
+  #ladder{display:flex;flex-wrap:wrap;justify-content:center;width:240px;gap:8px 0;margin:12px auto 10px}   /* 一行 6 个（6×40），最后一行不满时居中 */
+  .ptxt{display:flex;justify-content:center;margin:3px 0}
+  #tGoal{margin-top:6px}
+  #ladder > div{display:flex;flex-direction:column;align-items:center;width:40px}
+  #ladder > div > img:first-child{width:32px;height:32px;object-fit:contain;image-rendering:pixelated;display:block;margin:0 auto 3px}
+  #ladder .lbl{display:flex;justify-content:center}
+  /* 结束页 */
+  .card.over{width:212px;padding:12px 14px 12px}
+  .scoreRow{display:flex;justify-content:center;align-items:flex-end;gap:4px;margin:6px 0 4px}
+  .scoreRow img{margin:0}
+  #overUnit{padding-bottom:3px}
+  #overBest.rec{animation:bob .6s steps(2) infinite}
+  .sep{height:2px;margin:10px 6px 8px;background:repeating-linear-gradient(90deg,#cdbb98 0 4px,transparent 4px 8px)}
+  .maxRow{display:flex;align-items:center;justify-content:center;gap:8px;margin:6px 0 2px}
+  #overMaxImg{width:44px;height:44px;object-fit:contain;image-rendering:pixelated}
+  #ovOver .title{animation:drop .5s steps(5) both,bob 1.2s steps(2) .5s infinite}
+  @keyframes drop{0%{transform:translateY(-40px)}60%{transform:translateY(4px)}100%{transform:translateY(0)}}
+  #ovOver.show .card{animation:pop .3s steps(3) .2s both}
+  @keyframes pop{0%{transform:scale(.6);opacity:0}100%{transform:scale(1);opacity:1}}
+  .credit{text-align:left;font-size:12px}
+  .credit p{font-size:12px}
+  .credit a{color:#2a6fb0}
+  .credit p{margin:0 0 6px}
+  .plink{position:absolute;display:block;pointer-events:auto;border-bottom:1px solid #2a6fb0;box-sizing:border-box}
+  .btns{align-items:stretch}
+  .btn.sq{padding:0;min-width:0;background:#e9dcc4;--hi:#fbf3e2;--lo:#cdbb98}
+  .btn.alt{background:#e9dcc4;--hi:#fbf3e2;--lo:#cdbb98}
+  .col{display:flex;flex-direction:column;gap:14px;align-items:center;margin:2px 0 16px}
+  .btn.wide{width:120px}
+  /* 开始页：主按钮「开始」一整条（比下排宽），下面两个带图标的副按钮（图鉴/成就）；署名 i 在右下角 */
+  .menu{display:flex;flex-direction:column;align-items:center;gap:14px}
+  .menu .btns{gap:12px;margin-top:0}
+  .btn.go{width:188px;padding-left:22px;padding-right:22px;justify-content:space-between}   /* 开始 / 再来一局：比下排两个副键宽一截（草图 A2） */
+  .btn.go .arw{display:flex;animation:nudgeR .8s steps(2) infinite}
+  .btn.go .arw.r{animation-name:nudgeL}
+  @keyframes nudgeR{50%{transform:translateX(2px)}}
+  @keyframes nudgeL{50%{transform:translateX(-2px)}}
+  .btn.ib{width:92px;gap:6px;padding:7px 0 8px}
+  .btn.ib > span{display:flex}
+  .btn.sub:hover,.btn.alt:hover,.btn.sq:hover{background:#f4e8d3}   /* 奶白底那几种的悬停色（放在变体定义后面才盖得住） */
+  /* 暂停页角落的 i：和顶栏声音键同款同大小 */
+  .icon.corner{position:absolute;right:16px;bottom:22px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;
+    background:#fff6e0;--hi:#fffdf4;--lo:#e2cfa8;cursor:pointer}
+  .icon.corner:active{bottom:18px;box-shadow:0 -2px 0 0 var(--o),0 2px 0 0 var(--o),-2px 0 0 0 var(--o),2px 0 0 0 var(--o)}
+  /* 未解锁的问号层：叠在剪影正中，所有格子一样 */
+  #ladder > div,#dexGrid > div{position:relative}
+  .q{position:absolute;left:50%;margin-left:-7px;pointer-events:none}   /* 问号 14×18，按整数像素摆，不用 translate(-50%)，不然落在半像素上会糊 */
+  #ladder .q{top:7px}
+  #dexGrid .q{top:15px}
+  .card.pause{width:180px}
+  /* 美梦入口：卡片右上角的夜空绶带（开始页、普通局结束页；game.js 的 makeSash 画）。没进过美梦时隔一会儿蹦一下（画布里画） */
+  #ovStart .card,.card.over,#ovPause .card{position:relative;overflow:visible}
+  .card.dreamcfm{width:212px}   /* 暂停页进美梦的确认框：第二行「无法回到」标红，第三行一句话说明美梦模式 */
+  #dcf2{margin-top:6px}
+  #dcf3{margin-top:5px}
+  #wipe2{margin-top:6px}
+  #wipe3{margin-top:5px}
+  .card .sash{position:absolute;display:none;pointer-events:auto;z-index:2}
+  .card .sash.back{pointer-events:none;z-index:1}   /* 绶带底层：背面 + 投影，不跟着蹦 */
+  .card .sash.press{transform:translateY(2px)}   /* 诱导时的蹦跶在 game.js 里画（底层要跟着补背面），不用 CSS */
+  /* 顶栏的摇一摇：图标 + 九宫格能量豆（攒了几次就亮几颗，最多 9）；奶白底同其他顶栏键；没豆时变淡；摇的时候底色变暖金、图标抖；得到豆时弹一下 */
+  /* 2026-11-14 用户定（网页版和微信版一样）：摇一摇放在左侧分数栏「最高」那行下面，左边和分数对齐，
+     纵向中心 y=84 和右侧「下一个」预告同高（左右对称）；中心见 game.js 的 CHIP_X/CHIP_Y；
+     left 17.333 = 方键外描边（左 2）落在 15.333，和分数、「最高」字的描边外沿（x=16 再往左 1 个细网格格 = 2/3）完全对齐 */
+  /* 样式（2026-11-14 用户从几版里选的 C2）：图标装进和暂停键同款的 26×26 方键，右边隔 10 是描边九宫格（26×26，浮在天空上，
+     深棕描边同分数字的描边），进度条在九宫格下沿。没豆时只淡图标和九宫格；摇的时候方键变暖金、图标抖；按下时方键压下去 */
+  #hud .chip{pointer-events:auto;position:absolute;top:71px;left:17.333px;width:62px;height:26px;box-sizing:border-box;display:flex;align-items:center;justify-content:flex-start;gap:10px;
+    background:transparent;box-shadow:none;cursor:pointer}
+  #hud .chip .ic,#hud .chip .n{display:flex}
+  #hud .chip .ic{width:26px;height:26px;align-items:center;justify-content:center;background:#fff6e0;--o:#4a2e20;--hi:#fffdf4;--lo:#e2cfa8;
+    box-shadow:0 -2px 0 0 var(--o),0 2px 0 0 var(--o),-2px 0 0 0 var(--o),2px 0 0 0 var(--o),0 6px 0 0 var(--o),inset 0 -2px 0 0 var(--lo),inset 0 2px 0 0 var(--hi)}
+  #hud .chip.ready .ic img{animation:chipBob 1.6s steps(1) infinite}
+  @keyframes chipBob{0%,70%{transform:none}75%{transform:translateX(-2px)}80%{transform:translateX(2px)}85%{transform:translateX(-2px)}90%{transform:none}}
+  #hud .chip.empty{cursor:default}
+  #hud .chip.empty .ic img,#hud .chip.empty .n{opacity:.55}   /* 没豆：只淡图标和九宫格，键底和进度条不淡（进度条这时最要紧） */
+  #hud .chip.on .ic{background:#ffeaa0;--hi:#fff6d0;--lo:#e8c070}
+  #hud .chip.on .ic img{animation:chipJit .16s steps(2) infinite}
+  @keyframes chipJit{50%{transform:translateX(2px)}}
+  #hud .chip.water.on .ic{background:#cfe6df;--hi:#eef7f3;--lo:#8fc4b4}   /* 灌水进行中：键底淡海绿（同背景海面色系；摇一摇是暖金） */
+  #hud .chip.water.on .ic img{animation:chipWave .5s steps(2) infinite}
+  @keyframes chipWave{50%{transform:translateY(-2px)}}
+  #hud .chip.got{animation:chipGot .36s steps(3)}
+  @keyframes chipGot{0%{transform:translateY(-4px)}50%{transform:translateY(2px)}100%{transform:none}}
+  #hud .chip:active .ic{transform:translateY(4px);box-shadow:0 -2px 0 0 var(--o),0 2px 0 0 var(--o),-2px 0 0 0 var(--o),2px 0 0 0 var(--o)}
+  #shakeBar{position:absolute;left:36px;top:28px;width:26px;height:2px;background:#8a6a52;box-shadow:0 0 0 2px #4a2e20;pointer-events:none}   /* 离下一颗豆还差多少分：贴在九宫格下沿（像九宫格的底座），底边和方键的厚底边齐；豆满了整条金色慢闪 */
+  #shakeBar i{display:block;height:2px;width:0;background:#ffd25e}
+  #shakeBar.full i{animation:barFull 1s steps(1) infinite}
+  @keyframes barFull{50%{background:#fff1a8}}
+  .card.dex{width:284px}
+  #dexGrid{display:grid;grid-template-columns:repeat(4,60px);justify-content:center;gap:8px 4px;margin:8px 0 4px}
+  #dexGrid > div{display:flex;flex-direction:column;align-items:center;cursor:pointer;padding:4px 0 6px;height:64px;box-sizing:border-box}
+  /* 选中的底板（像素小牌子）垫在最下面 */
+  #dexGrid .plate{position:absolute;left:0;top:0;pointer-events:none}
+  #dexGrid img.face,#dexGrid .lbl{position:relative}
+  /* 名字栏固定高度：「？？？」和真名字字形高低不同，不固定的话两页图鉴高度会变 */
+  #ladder .lbl,#dexGrid .lbl{height:11px;display:flex;align-items:center;justify-content:center}
+  #dexGrid > div.flip{cursor:default;justify-content:center}
+  /* 翻页箭头：和顶栏图标键同款小方块 */
+  #dexGrid .flip .icon{width:30px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;
+    background:#e9dcc4;--hi:#fbf3e2;--lo:#cdbb98;position:relative;top:0}
+  #dexGrid .flip .icon:active{top:4px;box-shadow:0 -2px 0 0 var(--o),0 2px 0 0 var(--o),-2px 0 0 0 var(--o),2px 0 0 0 var(--o)}
+  /* 镀金页特效：反光带画布盖在图片上（同位置同大小同缩放），金星画布盖住整个格子网格 */
+  #dexGrid canvas.fxface{position:absolute;left:10px;top:4px;width:40px;height:40px;object-fit:contain;pointer-events:none;image-rendering:pixelated;image-rendering:crisp-edges}
+  #dexGrid #dexFx{position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;image-rendering:pixelated;image-rendering:crisp-edges}
+  #dexGrid img.face{width:40px;height:40px;object-fit:contain;image-rendering:pixelated;display:block;margin:0 auto 3px}
+  .dexInfo{min-height:66px;display:flex;flex-direction:column;justify-content:center}
+  /* 成就页：上面 9 列密排头像，下面选中的详情（左大头像、右文字），详情区固定高度 */
+  .card.ach{width:284px}
+  #achGrid{display:grid;grid-template-columns:repeat(9,26px);justify-content:center;gap:2px;margin:8px 0 6px}
+  #achGrid > div,.achInfo .big{position:relative;display:flex;align-items:center;justify-content:center;cursor:pointer}
+  #achGrid > div{width:26px;height:26px}
+  /* 底板（像素小牌子）垫在下面，头像叠在上面 */
+  #achGrid .plate,.achInfo .plate{position:absolute;left:0;top:0;pointer-events:none}
+  #achGrid .ic,.achInfo .ic{position:relative;display:flex;align-items:center;justify-content:center}
+  #achGrid canvas.sp,.achInfo canvas.sp{image-rendering:pixelated;image-rendering:crisp-edges;display:block}
+  #achGrid > div.off canvas.sp,.achInfo.off canvas.sp{filter:grayscale(1);opacity:.45}
+  /* 镀金头像冒的金星：一张画布盖住整张成就卡（同图鉴的 #dexFx） */
+  .card.ach{position:relative}
+  #achFxClip{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+  #achFx{position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;image-rendering:pixelated;image-rendering:crisp-edges}
+  .achInfo{height:64px;display:flex;align-items:center;gap:10px;padding:0 6px;margin-top:4px;border-top:2px dashed #cdbb98;padding-top:6px}
+  .achInfo.none{justify-content:center}
+  /* 成就小故事：达成后出现在详情下面，预留 2 行 + 饰点分隔线的高度，没达成时是空的，切换时卡片不跳。
+     饰点分隔：虚线 ─ 金菱形 ─ 虚线，下面整段居中 */
+  .achStory{min-height:70px;display:flex;flex-direction:column;align-items:stretch;margin-top:2px;padding:0 6px}
+  .storyHead{display:flex;align-items:center;gap:8px;margin:8px -6px 4px}   /* 抵掉 .achStory 的 6px 内边距，虚线和上面详情的分隔线一样宽 */
+  .storyHead i{flex:1;height:0;border-top:2px dashed #cdbb98}
+  .storyHead .dia{display:block;flex:none}
+  .achInfo .big{width:52px;height:52px;flex:none;cursor:default}
+  .achInfo .atx{display:flex;flex-direction:column;align-items:flex-start;gap:5px}
+  #hud{position:absolute;inset:0;pointer-events:none}
+  #hud .icon{pointer-events:auto;position:absolute;top:10px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;
+    background:#fff6e0;--hi:#fffdf4;--lo:#e2cfa8;cursor:pointer}
+  #hud .icon:active{top:14px;box-shadow:0 -2px 0 0 var(--o),0 2px 0 0 var(--o),-2px 0 0 0 var(--o),2px 0 0 0 var(--o)}
+  /* 意见便签：和角落 i 键同进同出，开始/结束/暂停页右下角才有（game.js 的 show() 管显示）。和角落 i 键同款同大小的方键，叠在 i 正上方；
+     便签图标隔一会儿晃一下 */
+  #noteTab{display:none;right:auto;left:16px;bottom:22px;pointer-events:auto}   /* 2026-11-11 挪到左下角，和右下角 i 对齐（右边太挤）；它直接挂在 #ui 下（#ui 整层不接点击），要自己打开，不然点了穿透（2026-11-10 修）*/
+  #noteTab.show{display:flex}
+  #noteTab:active{bottom:18px}
+  #noteTab img{animation:noteWig 4s steps(1) infinite}
+  @keyframes noteWig{0%,84%{transform:none}86%{transform:translate(-2px,-2px)}89%{transform:translate(0,-2px)}92%{transform:translate(-2px,0)}95%{transform:none}}
+  /* 教程「?」键：和角落 i 键、意见便签同进同出（开始/结束/暂停页），叠在便签正上方 */
+  #tutTab{display:none;bottom:62px;pointer-events:auto}
+  #tutTab.show{display:flex}
+  #tutTab:active{bottom:58px}
+  /* 教程页：一课 = 标题 + 几排「相框动画 + 短文字」（左右交替）+ 知道了/返回。
+     时停弹出时（.focus）不用 .ov 的整屏底色，改由 #tutVeil 画幕布、在待发射位挖圆孔；回看时就是普通的页 */
+  #ovTut.focus{background:none;justify-content:flex-start;box-sizing:border-box}
+  #ovTut.focus::before{display:none}
+  #tutVeil{position:absolute;left:0;top:0;width:360px;height:704px;pointer-events:none;display:none;image-rendering:pixelated;image-rendering:crisp-edges}
+  #ovTut.focus #tutVeil{display:block}
+  #ovTut .card,#ovTut .btns{position:relative}
+  .card.tut{width:232px;max-height:none;overflow:visible;padding:8px 10px 10px;position:relative}   /* 连边框 256 宽：落在容器木框里面（容器内壁 14–346） */
+  /* 美梦一课的卡片右上角：一条示例夜空绶带（只是图，不能点）+ 指着它的小字。位置/大小由 game.js 按格算 */
+  #tutSash{position:absolute;display:none;pointer-events:none;z-index:2}
+  .card.tut.dream #tutSash{display:block}
+  #tutArrow{position:absolute;left:0;top:0;width:252px;height:84px;display:none;pointer-events:none;z-index:3}   /* 小字末尾 → 绶带的长弧线箭头 */
+  .card.tut.dream #tutArrow{display:block}
+  #tutSashNote{display:none;position:relative;justify-content:center;align-items:center;margin:1px 0 0}
+  .card.tut.dream #tutSashNote{display:flex}
+  .card.tut.dream .h2{margin-bottom:0}   /* 小字紧贴标题，箭头才够得着右上角的示例绶带 */
+  .card.tut.dream #tutRows{margin-top:2px}
+  /* 摇一摇一课：标题下一行小字副标题（同美梦课标题下那行的字号、颜色、间距），首次弹出和回看都有 */
+  #tutShakeNote{display:none;justify-content:center;align-items:center;margin:1px 0 0}
+  .card.tut.shake #tutShakeNote{display:flex}
+  .card.tut.shake .h2{margin-bottom:0}
+  .card.tut.shake #tutRows{margin-top:2px}
+  .tutRow{display:flex;align-items:center;gap:4px;margin:8px 0}   /* gap 和 game.js 的 TUT_ROW_GAP 对上 */
+  .tutRow.flip{flex-direction:row-reverse}
+  .tutRow canvas{display:block;flex:none;image-rendering:pixelated;image-rendering:crisp-edges}
+  /* 摇一摇：大肥鱼产出的金豆要飞过相框/文字、落进第二排九宫格，所以单独一层盖在卡片内容上 */
+  #tutBeanFx{position:absolute;left:0;top:0;width:100%;height:100%;display:none;pointer-events:none;z-index:4;image-rendering:pixelated;image-rendering:crisp-edges}
+  .card.tut.shake #tutBeanFx{display:block}
+  .tutTxt{flex:1;display:flex}
+  .btn.tutPg{width:34px}   /* 回看时左右翻课（只有一课时藏起来） */
+  #ui.tutOver .icon.corner{visibility:hidden}   /* 教程盖在开始/结束/暂停页上时 */
+  #bTutOk.wait{visibility:hidden}
+  #bTutOk.pop{animation:pop .24s steps(3)}
+  /* 写意见的页：卡片本身是一张大便签（黄底），输入框是横格纸；放在屏幕上半截，手机弹键盘也不挡 */
+  #ovNote{justify-content:flex-start;padding-top:64px;box-sizing:border-box}
+  .card.note{width:268px;background:#ffeea0;--hi:#fff8cc;--lo:#e8c766;background-image:none;overflow:visible;position:relative}
+  .card.note .pin{position:absolute;left:50%;top:-6px;margin-left:-6px}   /* 图钉钉在卡片上沿正中 */
+  #noteText{display:block;width:100%;box-sizing:border-box;height:128px;margin:8px 0 4px;padding:2px 6px;resize:none;border:0;outline:0;border-radius:0;
+    font:14px/22px "Microsoft YaHei","PingFang SC","Noto Sans CJK SC",sans-serif;color:#4a2e20;caret-color:#c0532f;
+    background:#fff8cc repeating-linear-gradient(transparent 0 20px,#e8c766 20px 22px);background-attachment:local;
+    box-shadow:0 0 0 2px #4a2e20;user-select:text;-webkit-user-select:text;touch-action:auto;-webkit-appearance:none;appearance:none}
+  #noteText::placeholder{color:#b8995a}
+  .noteRow{display:flex;justify-content:space-between;align-items:center;min-height:18px;margin-top:2px}
+  #noteMsg{display:flex}
+  #noteCount{display:flex;margin-left:auto}
+  #bNoteSend.busy{filter:grayscale(.6) brightness(.95);pointer-events:none}
+  /* 加载页：盖住脚本还没跑完、界面还没排好的那一小会儿。不依赖任何外部文件（字模、精灵都还没到），位图全部内联画 */
+  #boot{position:fixed;inset:0;z-index:99;background:#2b1d16;display:flex;flex-direction:column;align-items:center;justify-content:center;--u:3px;
+    background-image:linear-gradient(#34241b 2px,transparent 2px);background-size:100% 8px}
+  #boot canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges}
+  #boot.out{pointer-events:none;animation:bootOut .32s steps(4) forwards}
+  @keyframes bootOut{to{opacity:0}}
+  #bootRow{display:flex;align-items:flex-end;gap:calc(var(--u)*2);margin-bottom:calc(var(--u)*4)}
+  #bootDots{display:flex;gap:var(--u);padding-bottom:var(--u)}
+  #bootDots i{display:block;width:var(--u);height:var(--u);background:#fff6e0;opacity:.2;animation:dotOn 1.2s steps(1) infinite}
+  #bootDots i:nth-child(2){animation-delay:.4s}
+  #bootDots i:nth-child(3){animation-delay:.8s}
+  @keyframes dotOn{0%{opacity:1}33%,100%{opacity:.2}}
+  /* 进度条：奶白像素框（四角缺一格）+ 深棕槽 + 金色方块 */
+  #bootBar{display:flex;gap:var(--u);padding:var(--u);background:#4a2e20;
+    box-shadow:0 calc(var(--u)*-1) 0 0 #fff6e0,0 var(--u) 0 0 #fff6e0,calc(var(--u)*-1) 0 0 0 #fff6e0,var(--u) 0 0 0 #fff6e0,0 calc(var(--u)*3) 0 0 #1a110c}
+  #bootBar b{display:block;width:calc(var(--u)*3);height:calc(var(--u)*4);background:#6b4a36}
+  #bootBar b.on{background:#ffd25e;box-shadow:inset 0 var(--u) 0 0 #ffeaa0,inset 0 calc(var(--u)*-1) 0 0 #e8a93a}
+</style>
+</head>
+<body>
+<div id="boot">
+  <div id="bootRow"><canvas id="bootText"></canvas><div id="bootDots"><i></i><i></i><i></i></div></div>
+  <div id="bootBar"></div>
+</div>
+<script>
+// 加载页：手画像素位图（5×7 点阵 LOADING）+ 方块进度条。
+// Boot.set(p) 报进度（0–1，只增不减）；Boot.done() 报全部就绪，条走满后像素式淡出并移除。
+(() => {
+  const N = 12, boot = document.getElementById('boot'), bar = document.getElementById('bootBar');
+  const draw = (cv, w, h, paint) => { cv.width = w; cv.height = h; paint(cv.getContext('2d')); };
+  // LOADING 点阵字
+  const G = { L: ['X....','X....','X....','X....','X....','X....','XXXXX'], O: ['.XXX.','X...X','X...X','X...X','X...X','X...X','.XXX.'],
+    A: ['.XXX.','X...X','X...X','XXXXX','X...X','X...X','X...X'], D: ['XXXX.','X...X','X...X','X...X','X...X','X...X','XXXX.'],
+    I: ['XXXXX','..X..','..X..','..X..','..X..','..X..','XXXXX'], N: ['X...X','XX..X','XX..X','X.X.X','X..XX','X..XX','X...X'],
+    G: ['.XXXX','X....','X....','X..XX','X...X','X...X','.XXXX'] };
+  draw(document.getElementById('bootText'), 42, 8, (g) => {
+    [...'LOADING'].forEach((ch, i) => G[ch].forEach((row, y) => [...row].forEach((c, x) => {
+      if (c !== 'X') return;
+      g.fillStyle = '#1a110c'; g.fillRect(i * 6 + x + 1, y + 1, 1, 1);
+    })));
+    [...'LOADING'].forEach((ch, i) => G[ch].forEach((row, y) => [...row].forEach((c, x) => {
+      if (c !== 'X') return;
+      g.fillStyle = y < 3 ? '#fffdf4' : '#fff6e0'; g.fillRect(i * 6 + x, y, 1, 1);
+    })));
+  });
+  for (let i = 0; i < N; i++) bar.appendChild(document.createElement('b'));
+  const blocks = bar.children;
+  // 一个像素 = 整数个 CSS 像素，小屏上也不糊
+  const fit = () => {
+    const u = Math.max(2, Math.min(6, Math.floor(Math.min(innerWidth / 64, innerHeight / 56))));
+    boot.style.setProperty('--u', u + 'px');
+    for (const [id, w, h] of [['bootText', 42, 8]]) {
+      const c = document.getElementById(id); c.style.width = w * u + 'px'; c.style.height = h * u + 'px';
+    }
+  };
+  fit(); addEventListener('resize', fit);   // 加载页移除后要摘掉，不然窗口一缩放就在找不到的元素上报错
+  let target = 0, shown = 0, finished = false, gone = false;
+  const tick = setInterval(() => {
+    const want = finished ? N : Math.floor(target * (N - 1));   // 没全好之前最多停在倒数第二格
+    if (shown < want) shown = Math.min(want, shown + (finished ? 3 : 1));
+    for (let i = 0; i < N; i++) blocks[i].className = i < shown ? 'on' : '';
+    if (finished && shown >= N && !gone) {
+      gone = true; clearInterval(tick);
+      setTimeout(() => { boot.classList.add('out'); setTimeout(() => { removeEventListener('resize', fit); boot.remove(); }, 360); }, 120);
+    }
+  }, 40);
+  window.Boot = { set(p) { if (p > target) target = Math.min(p, 1); }, done() { finished = true; } };
+  setTimeout(() => window.Boot.done(), 20000);   // 保底：哪个文件一直载不下来也别永远盖着
+})();
+</script>
+<canvas id="backdrop"></canvas>
+<div id="wrap">
+  <canvas id="cv"></canvas>
+  <div id="ui">
+  <div id="hud">
+    <div class="icon px" id="bSound" style="right:12px"></div>
+    <div class="icon px" id="bPause" style="right:48px;display:none"></div>
+    <!-- 美梦模式：摇一摇（顶栏正中，图标 + 剩余次数；下面一条是离下一次的分数进度） -->
+    <div class="chip px" id="bShake" style="display:none"><span class="ic"></span><span class="n"></span><div id="shakeBar" style="display:none"><i></i></div></div>
+  </div>
+
+  <div class="ov show" id="ovStart">
+    <div class="title" id="tTitle"></div>
+    <div class="sub-title" id="tSub"></div>
+    <div class="card px">
+      <canvas class="sash" id="sashStart"></canvas>
+      <div class="ptxt" id="tHow1"></div>
+      <div class="ptxt" id="tHow2"></div>
+      <div class="ptxt" id="tHow3"></div>
+      <div id="ladder"></div>
+      <div class="ptxt" id="tGoal"></div>
+      <div class="ptxt" id="tGold"></div>
+    </div>
+    <div class="menu">
+      <span class="btn px go" id="bStart"></span>
+      <div class="btns"><span class="btn px alt ib" id="bDex1"></span><span class="btn px alt ib" id="bAch1"></span></div>
+    </div>
+    <div class="icon px corner" id="bCredit1"></div>
+  </div>
+
+  <div class="ov" id="ovOver">
+    <div class="title" id="tOver"></div>
+    <div class="card px over">
+      <canvas class="sash" id="sashOver"></canvas>
+      <div class="ptxt" id="overLbl"></div>
+      <div class="scoreRow"><span id="overScore"></span><span id="overUnit"></span></div>
+      <div class="ptxt" id="overBest"></div>
+      <div class="sep"></div>
+      <div class="ptxt" id="overMaxLbl"></div>
+      <div class="maxRow"><img id="overMaxImg" alt=""><span id="overMax"></span></div>
+      <div class="ptxt" id="overAch"></div>
+    </div>
+    <div class="menu">
+      <span class="btn px go" id="bRetry"></span>
+      <div class="btns"><span class="btn px alt ib" id="bAch2"></span><span class="btn px alt ib" id="bHome"></span></div>
+    </div>
+    <div class="icon px corner" id="bCredit2"></div>
+  </div>
+
+
+  <div class="ov" id="ovPause">
+    <div class="title" id="tPause"></div>
+    <div class="card px pause">
+      <canvas class="sash" id="sashPause"></canvas>
+      <div class="ptxt" id="pScoreLbl"></div>
+      <div class="scoreRow"><span id="pScore"></span></div>
+      <div class="ptxt" id="pBest"></div>
+    </div>
+    <div class="col">
+      <span class="btn px wide alt" id="bDex"></span>
+      <span class="btn px wide alt" id="bAch"></span>
+      <span class="btn px wide alt" id="bRestart"></span>
+      <span class="btn px wide" id="bResume"></span>
+    </div>
+    <div class="icon px corner" id="bCredit3"></div>
+  </div>
+
+  <div class="ov" id="ovConfirm">
+    <div class="card px pause">
+      <div class="ptxt" id="cfm1"></div>
+      <div class="ptxt" id="cfm2"></div>
+    </div>
+    <div class="btns"><span class="btn px" id="bCfmYes"></span><span class="btn px alt" id="bCfmNo"></span></div>
+  </div>
+
+  <!-- 清空本地存档（隐藏的开发者功能：署名页连点标题 8 次） -->
+  <div class="ov" id="ovWipe">
+    <div class="card px dreamcfm">
+      <div class="ptxt" id="wipe1"></div>
+      <div class="ptxt" id="wipe2"></div>
+      <div class="ptxt" id="wipe3"></div>
+    </div>
+    <div class="btns"><span class="btn px" id="bWipeYes"></span><span class="btn px alt" id="bWipeNo"></span></div>
+  </div>
+  <div class="ov" id="ovDream">
+    <div class="card px dreamcfm">
+      <div class="ptxt" id="dcf1"></div>
+      <div class="ptxt" id="dcf2"></div>
+      <div class="ptxt" id="dcf3"></div>
+    </div>
+    <div class="btns"><span class="btn px" id="bDreamYes"></span><span class="btn px alt" id="bDreamNo"></span></div>
+  </div>
+
+  <div class="ov" id="ovDex">
+    <div class="card px dex">
+      <div class="h2" id="tDex"></div>
+      <div class="ptxt" id="dexCount"></div>
+      <div id="dexGrid"></div>
+      <div class="dexInfo" id="dexInfo"></div>
+    </div>
+    <div class="btns"><span class="btn px" id="bDexBack"></span></div>
+  </div>
+
+  <div class="ov" id="ovAch">
+    <div class="card px ach">
+      <div class="h2" id="tAch"></div>
+      <div class="ptxt" id="achCount"></div>
+      <div id="achGrid"></div>
+      <div class="achInfo" id="achInfo"></div>
+      <div class="achStory" id="achStory"></div>
+    </div>
+    <div class="btns"><span class="btn px" id="bAchBack"></span></div>
+  </div>
+
+  <div class="ov" id="ovCredit">
+    <div class="card px credit">
+      <div class="h2" id="tCredit"></div>
+    </div>
+    <div class="btns"><span class="btn px" id="bBack"></span></div>
+  </div>
+
+  <div class="ov" id="ovNote">
+    <div class="card px note">
+      <span class="pin" id="notePin"></span>
+      <div class="h2" id="tNote"></div>
+      <div class="ptxt" id="note1"></div>
+      <div class="ptxt" id="note2"></div>
+      <textarea id="noteText" maxlength="300" spellcheck="false" autocomplete="off"></textarea>
+      <div class="noteRow"><span id="noteMsg"></span><span id="noteCount"></span></div>
+    </div>
+    <div class="btns"><span class="btn px" id="bNoteSend"></span><span class="btn px alt" id="bNoteBack"></span></div>
+  </div>
+
+  <div class="ov" id="ovTut">
+    <canvas id="tutVeil"></canvas>
+    <div class="card px tut">
+      <canvas id="tutSash"></canvas>
+      <canvas id="tutArrow"></canvas>
+      <div class="h2" id="tTut"></div>
+      <div id="tutSashNote"></div>
+      <div id="tutShakeNote"></div>
+      <div id="tutRows"></div>
+      <canvas id="tutBeanFx"></canvas>
+    </div>
+    <div class="btns"><span class="btn px sub sq tutPg" id="bTutPrev"></span><span class="btn px" id="bTutOk"></span><span class="btn px sub sq tutPg" id="bTutNext"></span></div>
+  </div>
+
+  <div class="icon px corner" id="noteTab"></div>
+  <div class="icon px corner" id="tutTab"></div>
+  </div>
+</div>
+<script src="vendor/matter.min.js" onload="Boot.set(.1)"></script>
+<script src="text.js?v=d9faf966" onload="Boot.set(.12)"></script>
+<script src="sprites/shapes.js?v=8f3b00b8" onload="Boot.set(.15)"></script>
+<script src="sprites/ach.js?v=8f68d6e5" onload="Boot.set(.17)"></script>
+<script src="pixui.js?v=417ab5d8" onload="Boot.set(.2)"></script>
+<script>PixUI.ready.then(() => { Boot.set(.4); const s = document.createElement('script'); s.src = 'game.js?v=f107a647'; s.onload = () => Boot.set(.5); document.body.appendChild(s); });</script>
+</body>
+</html>
