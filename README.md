@@ -75,4 +75,11 @@ python tools/build.py
 - 本作品采用 [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh) 许可共享：署名、非商业性使用、相同方式共享。
 - 物理引擎 Matter.js（MIT）；字体思源黑体 Noto Sans SC（SIL OFL 1.1），仅用于离线生成字模。
 
-欢迎 fork、二创，但请保留署名、不要商用；角色形象的原作权利归原作者。
+## 许可
+
+见 [LICENSE](LICENSE)：
+
+- **美术与角色素材**（`art/`、`sprites/` 下的图片）：[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh)——署名、非商业性使用、相同方式共享；角色形象的原作权利归原作者。
+- **其余全部**（代码、脚本、文案、文档）：MIT。
+
+欢迎 fork、二创；用到美术素材请保留署名、不要商用。

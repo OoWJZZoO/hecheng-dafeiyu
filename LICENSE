@@ -1,0 +1,41 @@
+合成大肥鱼 / Hecheng Dafeiyu — 许可范围 / License scope
+
+本仓库分两部分，各用各的许可：
+
+1. 美术与角色素材 —— CC BY-NC-SA 4.0
+   范围：`art/`、`sprites/` 下的全部图片（精灵、背景、成就头像等）及其所表现的角色形象。
+   这些素材是《按下发送之后》角色的粉丝向二创，署名、非商业性使用、相同方式共享。
+   完整条款：https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode.zh-hans
+   署名要求见 README 与游戏内「关于与署名」页。
+   例外：`sprites/font.png`、`sprites/font.json` 是用思源黑体 Noto Sans SC
+   （SIL OFL 1.1）生成的字模，字体部分仍受 OFL 约束。
+
+2. 其余全部（代码、构建脚本、文案、文档）—— MIT License
+   范围：除上面第 1 项以外的所有文件，如 `index.html`、`game.js`、`pixui.js`、
+   `text.json`/`text.js`、`tools/`、`docs/`、`.github/`。
+
+   `vendor/matter.min.js` 是 Matter.js（MIT，版权归其作者所有），保留其自带的版权声明。
+
+--------------------------------------------------------------------------------
+
+MIT License
+
+Copyright (c) 2026 OoWJZZoO
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
