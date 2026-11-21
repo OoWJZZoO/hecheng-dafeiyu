@@ -52,6 +52,8 @@
   .ptxt{display:flex;justify-content:center;margin:3px 0}
   #tGoal{margin-top:6px}
   #ladder > div{display:flex;flex-direction:column;align-items:center;width:40px}
+  /* canvas 读回不可靠的设备（pixui.js READ_OK）：没解锁的格子贴原图，压成暗色当剪影（正常设备用 game.js lockImg 画的剪影） */
+  html.noread img.lk{filter:brightness(0);opacity:.45}
   #ladder > div > img:first-child{width:32px;height:32px;object-fit:contain;image-rendering:pixelated;display:block;margin:0 auto 3px}
   #ladder .lbl{display:flex;justify-content:center}
   /* 结束页 */
@@ -235,6 +237,26 @@
     background:#fff8cc repeating-linear-gradient(transparent 0 20px,#e8c766 20px 22px);background-attachment:local;
     box-shadow:0 0 0 2px #4a2e20;user-select:text;-webkit-user-select:text;touch-action:auto;-webkit-appearance:none;appearance:none}
   #noteText::placeholder{color:#b8995a}
+  /* 排行榜（只在 B站 Toy 版里有，2026-11-21）：入口是开始/结束/暂停页左下角的方键，占原来意见便签的位置（Toy 版没有便签） */
+  #rankTab{display:none;right:auto;left:16px;bottom:22px;pointer-events:auto}
+  #rankTab.show{display:flex}
+  #rankTab:active{bottom:18px}
+  .card.rank{width:284px}
+  .rankTabs{display:flex;gap:10px;justify-content:center;margin:6px 0 8px}
+  .rankTabs .btn{padding:5px 10px 6px}
+  .rankTabs .btn.on,.rankTabs .btn.on:hover{background:#ffd25e;--hi:#ffeaa0;--lo:#e8a93a}
+  /* 榜单：固定高度，超出在框里滚（body 整体 touch-action:none，这里单独放开竖向滑动） */
+  #rankList{height:296px;overflow-y:auto;touch-action:pan-y;overscroll-behavior:contain;border-top:2px dashed #cdbb98;border-bottom:2px dashed #cdbb98}
+  .rrow{display:flex;align-items:center;gap:8px;height:34px;padding:0 6px 0 2px;border-bottom:2px dashed #ead9b6}
+  .rno{width:26px;flex:none;display:flex;justify-content:center}
+  .rav{width:22px;height:22px;flex:none;object-fit:cover;background:#e9dcc4;box-shadow:0 0 0 2px #4a2e20}
+  /* 昵称是玩家的 B站 昵称，什么字都可能有，离线字模拼不出来，用系统字体（同意见便签的输入框） */
+  .rnm{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;text-align:left;
+    font:bold 12px/16px "Microsoft YaHei","PingFang SC","Noto Sans CJK SC",sans-serif;color:#4a2e20}
+  .rsc{flex:none;display:flex}
+  .rankMsg{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:0 10px}
+  .rankMine{display:flex;justify-content:space-between;align-items:center;min-height:22px;padding:8px 6px 0}
+  .rankMine > span{display:flex}
   .noteRow{display:flex;justify-content:space-between;align-items:center;min-height:18px;margin-top:2px}
   #noteMsg{display:flex}
   #noteCount{display:flex;margin-left:auto}
@@ -436,10 +458,23 @@
       <div class="h2" id="tNote"></div>
       <div class="ptxt" id="note1"></div>
       <div class="ptxt" id="note2"></div>
+      <!-- toy-strip -->
       <textarea id="noteText" maxlength="300" spellcheck="false" autocomplete="off"></textarea>
+      <!-- /toy-strip -->
       <div class="noteRow"><span id="noteMsg"></span><span id="noteCount"></span></div>
     </div>
     <div class="btns"><span class="btn px" id="bNoteSend"></span><span class="btn px alt" id="bNoteBack"></span></div>
+  </div>
+
+  <!-- 排行榜：只在 B站 Toy 版里有（game.js 排行榜一节） -->
+  <div class="ov" id="ovRank">
+    <div class="card px rank">
+      <div class="h2" id="tRank"></div>
+      <div class="rankTabs"><span class="btn px sub" id="bRank1"></span><span class="btn px sub" id="bRank2"></span></div>
+      <div id="rankList"></div>
+      <div class="rankMine" id="rankMine"></div>
+    </div>
+    <div class="btns"><span class="btn px" id="bRankBack"></span></div>
   </div>
 
   <div class="ov" id="ovTut">
@@ -458,13 +493,14 @@
 
   <div class="icon px corner" id="noteTab"></div>
   <div class="icon px corner" id="tutTab"></div>
+  <div class="icon px corner" id="rankTab"></div>
   </div>
 </div>
 <script src="vendor/matter.min.js" onload="Boot.set(.1)"></script>
-<script src="text.js?v=d9faf966" onload="Boot.set(.12)"></script>
+<script src="text.js?v=a899d9b8" onload="Boot.set(.12)"></script>
 <script src="sprites/shapes.js?v=8f3b00b8" onload="Boot.set(.15)"></script>
 <script src="sprites/ach.js?v=8f68d6e5" onload="Boot.set(.17)"></script>
-<script src="pixui.js?v=417ab5d8" onload="Boot.set(.2)"></script>
-<script>PixUI.ready.then(() => { Boot.set(.4); const s = document.createElement('script'); s.src = 'game.js?v=f107a647'; s.onload = () => Boot.set(.5); document.body.appendChild(s); });</script>
+<script src="pixui.js?v=f3dc0289" onload="Boot.set(.2)"></script>
+<script>Promise.all([PixUI.ready, window.TOY_BOOT]).then(() => {   /* TOY_BOOT：Toy 版先读完云存档（toy.js），网页版没有 */ Boot.set(.4); const s = document.createElement('script'); s.src = 'game.js?v=3488755c'; s.onload = () => Boot.set(.5); document.body.appendChild(s); });</script>
 </body>
 </html>

@@ -33,6 +33,7 @@ python -m http.server 8731 --bind 127.0.0.1
 ```
 index.html, game.js      游戏本体（所有页面在 index.html，逻辑在 game.js）
 pixui.js                 像素字 / 像素 UI 渲染
+toy.js                   B站 Toy 版的适配层（云存档、排行榜、跳转），只打进 Toy 包
 vendor/matter.min.js     物理引擎 Matter.js
 text.json  →  text.js    全部文案的源头 → 构建生成的 window.TEXT
 sprites/                 生成物：精灵、背景、成就头像、字模图等（运行时用的就是这里）
@@ -67,6 +68,22 @@ python tools/build.py
 ## 部署
 
 本仓库推到 `main` 会由 GitHub Actions（[`.github/workflows/pages.yml`](.github/workflows/pages.yml)）自动发布到 GitHub Pages，只打包运行需要的文件（`index.html game.js pixui.js text.js vendor sprites`）。fork 后在仓库 Settings → Pages 里把 Source 选成 GitHub Actions 即可。
+
+### B站 Toy 版
+
+同一份代码另打一个包发到 [B站 Toy](https://www.bilibili.com/toy/intro)，B站 视频下面可以就地开玩。源文件不分叉，区别全在打包脚本里：
+
+```bash
+python tools/build.py            # 先照常构建（文案、字模、版本号）
+python tools/build_toy.py        # → dist/toy/（注入 B站 Toy SDK 和 toy.js）
+python tools/build_toy.py --fake # → dist/toy-fake/（假 SDK，本地测试用）
+```
+
+- **只在 Toy 版有**：排行榜（普通模式、美梦模式各一个榜，入口在开始/结束/暂停页左下角）、云存档（最高分、成就、图鉴、美梦进度等同步到 B站 账号，`toy.js`）。网页版没有 `toy.js`，这些都不出现。
+- **按平台规则去掉的**：意见便签的输入框和发送代码（`toy-strip` 标记之间，打包时整段删）、署名页的站外链接（只留文字；B站 空间链接改走 `toy.navigate`）。
+- **本地测试**：起静态服务器打开 `dist/toy-fake/index.html`；网址参数 `?guest`（没登录）、`?limit`（限流）、`?slow`（云存档读得慢）、`?fail`（榜单读取失败），见 `tools/toy_fake_sdk.js`。
+- **上传前预检**：用官方的 [`toy_doctor.py`](https://github.com/bilibili/toy/tree/main/skills/toy/scripts) 过一遍 `dist/toy/`（入口 index.html 不能超过 1MB、不能有绝对路径等）。
+- **封面**：`NODE_PATH=$(npm root -g) node tools/make_toy_cover.cjs` 出 4:3 的 `dist/toy-meta/cover.png`（照开始页样式重排，`tools/toy_cover.html`）。
 
 ## 署名与授权
 

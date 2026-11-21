@@ -20,9 +20,9 @@ FONT = 'C:/Windows/Fonts/NotoSansSC-VF.ttf'
 # (字号, 粗细[, 只要这些字])。字号按「点阵格」算：u=2 的大字就是原字号；小字画在 1.5 倍细网格上
 # （见 game.js 的 FINE），字号 ×1.5
 NUM = '+-0123456789'
-# 页面标题（21 号字模只含这几个字）：text.json 里「署名页.标题」「图鉴.标题」「成就.标题」「意见.标题」，改标题文案后字会自动跟上
+# 页面标题（21 号字模只含这几个字）：text.json 里「署名页.标题」「图鉴.标题」「成就.标题」「意见.标题」「排行榜.标题」，改标题文案后字会自动跟上
 _tj = json.loads((ROOT / 'text.json').read_text(encoding='utf-8'))
-TITLE_CHARS = ''.join(dict.fromkeys(_tj['署名页']['标题'] + _tj['图鉴']['标题'] + _tj['成就']['标题'] + _tj['意见']['标题'] + ''.join(v['标题'] for v in _tj['教程'].values() if isinstance(v, dict))))   # 教程每课的卡片标题也用 21 号标题字
+TITLE_CHARS = ''.join(dict.fromkeys(_tj['署名页']['标题'] + _tj['图鉴']['标题'] + _tj['成就']['标题'] + _tj['意见']['标题'] + _tj['排行榜']['标题'] + ''.join(v['标题'] for v in _tj['教程'].values() if isinstance(v, dict))))   # 教程每课的卡片标题也用 21 号标题字
 STYLES = [
     (11, 400), (13, 700), (20, 700),                                           # 大字：按钮、名字、标题
     (12, 700, NUM), (14, 700, NUM),                                            # 大字：分数、+N 飘字

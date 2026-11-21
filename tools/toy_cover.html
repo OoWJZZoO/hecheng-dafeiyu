@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<!-- B站 Toy 封面（4:3，1200×900，2026-11-21）：照开始页的样式重排成横图。由 tools/make_toy_cover.cjs 打开并截图，
+     不进游戏包。全部用游戏自己的素材：高背景 bg_tall.png、像素字模（标题/副标题/简称/目标/开始键同开始页的样式）、11 级精灵。
+     背景 1 格 = 5 像素（游戏里 1 格 = 2 逻辑像素，所以标题、卡片边框这些按「1 逻辑像素 = 2.5 像素」换算，取整到格子上）。 -->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<base href="/">
+<style>html,body{margin:0;background:#000}canvas{display:block}</style>
+</head>
+<body>
+<canvas id="c" width="1200" height="900"></canvas>
+<script src="text.js"></script>
+<script src="pixui.js"></script>
+<script>
+(async () => {
+  const W = 1200, H = 900, S = 5;                  // S：背景 1 格的像素数
+  const PX = window.PixUI, TX = window.TEXT, INK = '#4a2e20';
+  const q = new URLSearchParams(location.search);
+  const BGX = +(q.get('bgx') ?? 10), BGY = +(q.get('bgy') ?? 30);   // 背景裁切起点（格）
+  const cv = document.getElementById('c'), g = cv.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  const load = (src) => new Promise((ok, bad) => { const im = new Image(); im.onload = () => ok(im); im.onerror = bad; im.src = src; });
+  await PX.ready;
+  const bg = await load('sprites/bg_tall.png');
+  const tiers = await Promise.all(Array.from({ length: 11 }, (_, i) => load(`sprites/t${String(i + 1).padStart(2, '0')}.png`)));
+
+  // 背景：240×180 格，放大 5 倍
+  g.drawImage(bg, BGX, BGY, W / S, H / S, 0, 0, W, H);
+  g.fillStyle = 'rgba(43,29,22,.38)'; g.fillRect(0, 0, W, H);   // 同开始页的遮罩色，淡一些
+
+  // 像素图按整数倍贴（cx 水平居中，y 顶边）
+  const blit = (c, k, cx, y) => { const w = c.width * k, h = c.height * k; g.drawImage(c, Math.round(cx - w / 2), Math.round(y), w, h); return h; };
+
+  // 标题 + 副标题（开始页同款：TITLE 金字、副标题奶白细字）
+  const TITLE = { px: 20, fill: '#ffe08a', fill2: '#f5a742', hi: '#fff6c8' };
+  blit(PX.text(TX.标题.游戏名, TITLE), 7, W / 2, 34);
+  blit(PX.text(TX.标题.副标题, { px: 12, bold: false, fill: '#fff6e0', thr: 90 }), 3, W / 2, 210);
+
+  // 像素框（.px：四边 1 格描边、四角缺一格、底边多 2 格当投影、内侧上亮下暗 1 格）
+  function box(x, y, w, h, fill, hi, lo) {
+    const u = S;
+    g.fillStyle = INK;
+    g.fillRect(x, y - u, w, u); g.fillRect(x, y + h, w, 3 * u); g.fillRect(x - u, y, u, h); g.fillRect(x + w, y, u, h);
+    g.fillStyle = fill; g.fillRect(x, y, w, h);
+    if (hi) { g.fillStyle = hi; g.fillRect(x, y, w, u); }
+    if (lo) { g.fillStyle = lo; g.fillRect(x, y + h - u, w, u); }
+  }
+
+  // 卡片（奶白纸 + 横格线），里面两排 11 级（6 + 5）、简称、目标
+  const CX = 110, CY = 286, CW = 980, CH = 452;
+  box(CX, CY, CW, CH, '#fff6e0', '#fffdf4', '#ead9b6');
+  g.fillStyle = '#f2e4c6';
+  for (let y = CY + 3 * S; y < CY + CH - S; y += 4 * S) g.fillRect(CX, y, CW, S);
+  const LBL = { px: 10, bold: false, fill: '#6b4a36', outline: null, shadow: false, thr: 100 };
+  const short = TX.物品.map((x) => x.简称);
+  const rows = [[0, 1, 2, 3, 4, 5], [6, 7, 8, 9, 10]], CELL = 150, BOX = 100;
+  rows.forEach((row, r) => {
+    const y0 = CY + 30 + r * 176;
+    row.forEach((k, i) => {
+      const cx = W / 2 + (i - (row.length - 1) / 2) * CELL;
+      // 同开始页的阶梯：每级都缩放进同样大的方框（最近邻，游戏里阶梯也是 pixelated 缩放）
+      const im = tiers[k], kk = BOX / Math.max(im.width, im.height);
+      const w = Math.round(im.width * kk), h = Math.round(im.height * kk);
+      g.drawImage(im, Math.round(cx - w / 2), Math.round(y0 + BOX - h), w, h);   // 底对齐
+      blit(PX.text(short[k], LBL), 3, cx, y0 + BOX + 12);
+    });
+  });
+  blit(PX.text(TX.开始页.目标, { px: 12, bold: true, fill: '#c0532f', outline: null, shadow: false, thr: 80 }), 3, W / 2, CY + CH - 56);
+
+  // 开始键（.btn.go：黄底、两侧箭头）
+  const BW = 420, BH = 84, BX = (W - BW) / 2, BY = 772;
+  box(BX, BY, BW, BH, '#ffd25e', '#ffeaa0', '#e8a93a');
+  const BTN = { px: 16.5, bold: false, fill: INK, outline: null, shadow: false, thr: 70 };
+  const t = PX.text(TX.按钮.开始, BTN), tk = 4;
+  blit(t, tk, W / 2, BY + (BH - t.height * tk) / 2);
+  const icon = (n, cx) => { const c = PX.icon(n); blit(c, S, cx, BY + (BH - c.height * S) / 2); };
+  icon('next', BX + 54); icon('prev', BX + BW - 54);
+
+  document.title = 'done';
+})().catch((e) => { document.title = 'error: ' + e; });
+</script>
+</body>
+</html>

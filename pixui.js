@@ -8,18 +8,75 @@ const INK = '#4a2e20';
 
 // ---------------------------------------------------------------- 字模
 let ATLAS = null, GRAY = null, AW = 0;     // 字模元数据、灰度（0–255 覆盖率）、字模图宽
-const ready = Promise.all([
-  fetch('sprites/font.json?v=4c68919b').then(r => r.json()),
-  new Promise((ok, bad) => { const im = new Image(); im.onload = () => ok(im); im.onerror = bad; im.src = 'sprites/font.png?v=b656dc19'; }),
-]).then(([meta, im]) => {
+// 字模灰度优先直接解 PNG 字节，不经过 canvas。2026-11-21 B站 Toy 版有玩家反馈界面字全没了（图标、精灵都在）：
+// 原来是把字模图画到 canvas 再 getImageData 读回，部分设备 / WebView（隐私防指纹之类）读回的是全空数据，
+// 字模灰度全 0，每个字都被二值化抹掉，也不报错。自己解 PNG 就不依赖读回；没有 DecompressionStream 的老浏览器才退回 canvas。
+const FONT_PNG = 'sprites/font.png?v=0f477813';
+// 只解 tools/make_font.py 产出的格式：8 位灰度、不隔行（其他格式抛错，退回 canvas）
+async function decodeGrayPng(buf) {
+  const b = new Uint8Array(buf), dv = new DataView(buf);
+  if (dv.getUint32(0) !== 0x89504e47) throw new Error('不是 PNG');
+  let p = 8, w = 0, h = 0;
+  const idat = [];
+  while (p + 8 <= b.length) {
+    const n = dv.getUint32(p), type = String.fromCharCode(b[p + 4], b[p + 5], b[p + 6], b[p + 7]);
+    if (type === 'IHDR') {
+      w = dv.getUint32(p + 8); h = dv.getUint32(p + 12);
+      if (b[p + 16] !== 8 || b[p + 17] !== 0 || b[p + 20] !== 0) throw new Error('不是 8 位灰度不隔行的 PNG');
+    } else if (type === 'IDAT') idat.push(b.subarray(p + 8, p + 8 + n));
+    else if (type === 'IEND') break;
+    p += 12 + n;
+  }
+  const raw = new Uint8Array(await new Response(new Blob(idat).stream().pipeThrough(new DecompressionStream('deflate'))).arrayBuffer());
+  if (!w || raw.length < (w + 1) * h) throw new Error('PNG 数据不完整');
+  const out = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {   // 逐行反滤波（每像素 1 字节）
+    const f = raw[y * (w + 1)], s = y * (w + 1) + 1, o = y * w;
+    for (let x = 0; x < w; x++) {
+      const v = raw[s + x], a = x ? out[o + x - 1] : 0, u = y ? out[o - w + x] : 0, c = x && y ? out[o - w + x - 1] : 0;
+      let r;
+      if (f === 0) r = v;
+      else if (f === 1) r = v + a;
+      else if (f === 2) r = v + u;
+      else if (f === 3) r = v + ((a + u) >> 1);
+      else if (f === 4) { const q = a + u - c, pa = Math.abs(q - a), pb = Math.abs(q - u), pc = Math.abs(q - c); r = v + (pa <= pb && pa <= pc ? a : pb <= pc ? u : c); }
+      else throw new Error('PNG 滤波类型不认识：' + f);
+      out[o + x] = r & 255;
+    }
+  }
+  return { w, gray: out };
+}
+const viaCanvas = () => new Promise((ok, bad) => { const im = new Image(); im.onload = () => ok(im); im.onerror = bad; im.src = FONT_PNG; }).then((im) => {
   const c = document.createElement('canvas'); c.width = im.width; c.height = im.height;
   const g = c.getContext('2d'); g.drawImage(im, 0, 0);
-  const d = g.getImageData(0, 0, c.width, c.height).data;
-  GRAY = new Uint8Array(c.width * c.height);
-  for (let i = 0; i < GRAY.length; i++) GRAY[i] = d[i * 4];
-  ATLAS = meta; AW = c.width;
+  const d = g.getImageData(0, 0, c.width, c.height).data, gray = new Uint8Array(c.width * c.height);
+  for (let i = 0; i < gray.length; i++) gray[i] = d[i * 4];
+  return { w: c.width, gray };
+});
+const viaBytes = () => (typeof DecompressionStream === 'function' && typeof Blob.prototype.stream === 'function'
+  ? fetch(FONT_PNG).then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); }).then(decodeGrayPng)
+  : Promise.reject(new Error('没有 DecompressionStream')));
+const ready = Promise.all([
+  fetch('sprites/font.json?v=f16308e3').then(r => r.json()),
+  viaBytes().catch((e) => { console.warn('[PixUI] 字模图没法直接解，改用 canvas 读回', e); return viaCanvas(); }),
+]).then(([meta, at]) => {
+  // 读到的灰度全空 = 读回被设备改掉了：宁可退回系统字体（至少看得见），也不要静默显示一屏空白
+  let ink = false;
+  for (let i = 0; i < at.gray.length; i += 61) if (at.gray[i] > 128) { ink = true; break; }
+  if (!ink) throw new Error('字模灰度全空');
+  ATLAS = meta; GRAY = at.gray; AW = at.w;
 }).catch((e) => console.warn('[PixUI] 字模图没载入，退回系统字体', e));
 const missed = new Set();
+// canvas 读回靠不靠得住（见上：部分设备读回全空）。靠不住时，退回系统字体的那两条路直接画字，不再读回二值化
+const READ_OK = (() => {
+  try {
+    const c = document.createElement('canvas'); c.width = c.height = 2;
+    const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, 2, 2);
+    const d = g.getImageData(0, 0, 2, 2).data;
+    return d[0] > 200 && d[3] > 200;
+  } catch (e) { return false; }
+})();
+if (!READ_OK) { console.warn('[PixUI] 这台设备 canvas 读回不可靠'); document.documentElement.classList.add('noread'); }
 const styleOf = (px, bold) => {
   const k = `${+px.toFixed(3)}_${bold ? 700 : 400}`;
   return ATLAS && ATLAS[k] ? ATLAS[k] : null;
@@ -66,6 +123,12 @@ function text(str, { px = 12, bold = true, fill = '#fff6e0', fill2 = null, hi = 
   const c = document.createElement('canvas'); c.width = w; c.height = h;
   const g = c.getContext('2d');
   const alpha = new Uint8Array(w * h);
+  if (aw === null && !READ_OK) {   // 没字模、读回又不可靠：直接用系统字体画（描边 + 填色），没有像素化，但看得见
+    g.font = font; g.textBaseline = 'middle'; g.lineJoin = 'round';
+    if (outline) { g.lineWidth = ow * 2; g.strokeStyle = outline; g.strokeText(str, pad, h / 2); }
+    g.fillStyle = fill; g.fillText(str, pad, h / 2);
+    return c;
+  }
   if (aw !== null) stamp(alpha, w, h, str, px, bold, pad, pad + Math.round(px * 1.12));
   else {
     g.font = font; g.textBaseline = 'middle'; g.fillStyle = '#000';
@@ -259,6 +322,17 @@ const ICONS = {
     '#yyyy##.',
     '######..',
   ],
+  podium: [   // 排行榜（只在 B站 Toy 版里有，2026-11-21）：领奖台，中间金、左银、右铜，金台上一颗亮星；和成就的金奖杯区分开
+    '.....h.....',
+    '....hoh....',
+    '.....h.....',
+    '...#####...',
+    '...#hoo#...',
+    '####hoo#...',
+    '#sg#ood####',
+    '#sg#ood#ce#',
+    '###########',
+  ],
   sound: [
     '...#.....',
     '..##..#..',
@@ -285,7 +359,8 @@ const ICONS = {
 const ICON_PAL = { '#': INK, 'x': '#c8402f', 'o': '#f0b828', 'h': '#fff1a8', 'd': '#c88a1e', 'p': '#fff6e0',
   'm': '#8a5a36', 'n': '#b07a4c', 'b': '#5aa6e8', 'l': '#cfe8ff', 'r': '#f3e6cf',
   'y': '#ffe98a', 'q': '#d9a640', 'Y': '#f2c45a', 'k': '#ff9a7a', 'z': '#8a2a20',
-  'w': '#2f6f6c', 'v': '#8fc4b4' };   // w/v：灌水图标的水（取背景海面的青绿，2026-11-14）
+  'w': '#2f6f6c', 'v': '#8fc4b4',   // w/v：灌水图标的水（取背景海面的青绿，2026-11-14）
+  's': '#dfe3ea', 'g': '#9aa3b0', 'c': '#d9914c', 'e': '#a8642e' };   // s/g 领奖台银（亮/暗）、c/e 铜（亮/暗）
 function icon(name) { return bitmap(ICONS[name], ICON_PAL); }
 
 // 把像素图放进元素里（u = 一个像素占几个逻辑像素）
@@ -364,9 +439,11 @@ function para(runs, { px = 12, maxW = 240, lh = 1.6, thr = 70, align = 'left' } 
   } else {
     g.textBaseline = 'middle';
     for (const p of placed) { g.font = fontOf(p.r); g.fillStyle = p.r.color || INK; g.fillText(p.t, p.x, p.line * lineH + lineH / 2); }
-    const im = g.getImageData(0, 0, W, H), d = im.data;
-    for (let i = 3; i < d.length; i += 4) d[i] = d[i] > thr ? 255 : 0;
-    g.putImageData(im, 0, 0);
+    if (READ_OK) {   // 读回不可靠时跳过二值化，保留系统字体原样（见 READ_OK）
+      const im = g.getImageData(0, 0, W, H), d = im.data;
+      for (let i = 3; i < d.length; i += 4) d[i] = d[i] > thr ? 255 : 0;
+      g.putImageData(im, 0, 0);
+    }
   }
   const links = [];
   for (const p of placed) {
@@ -380,5 +457,5 @@ function para(runs, { px = 12, maxW = 240, lh = 1.6, thr = 70, align = 'left' } 
   return { canvas: c, links };
 }
 
-window.PixUI = { text, icon, put, bitmap, para, INK, ready, missed, zoom: 1, ICONS, ICON_PAL };
+window.PixUI = { text, icon, put, bitmap, para, INK, ready, missed, zoom: 1, ICONS, ICON_PAL, readOk: READ_OK };
 })();

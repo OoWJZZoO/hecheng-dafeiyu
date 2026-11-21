@@ -410,6 +410,9 @@ function putPara(el, runs, maxW, px = 12, align = 'left') {
   for (const l of links) for (const r of l.rects) {
     const a = document.createElement('a');
     a.href = l.href; a.target = '_blank'; a.rel = 'noopener'; a.className = 'plink';
+    // B站 Toy 版：不能用普通链接跳走，B站 空间链接改走 toy.navigate（站外链接在 markup 里已经去掉了）
+    const mid = window.TOY && /space\.bilibili\.com\/(\d+)/.exec(l.href);
+    if (mid) a.onclick = (e) => { e.preventDefault(); window.TOY.space(mid[1]); };
     Object.assign(a.style, { left: r.x / f + 'px', top: r.y / f + 'px', width: r.w / f + 'px', height: r.h / f + 'px' });
     el.appendChild(a);
   }
@@ -420,7 +423,9 @@ function markup(str) {
   let last = 0, m;
   while ((m = re.exec(str))) {
     if (m.index > last) out.push({ t: str.slice(last, m.index) });
-    out.push(m[1] ? { t: m[1], bold: true } : { t: m[2], color: '#2a6fb0', href: m[3] });
+    // B站 Toy 版不许跳站外：站外链接只留文字（tools/build_toy.py 打包时也会把 text.js 里的站外链接去掉）
+    if (m[2] && window.TOY && !/^https?:\/\/[\w.]*bilibili\.com\//.test(m[3])) out.push({ t: m[2] });
+    else out.push(m[1] ? { t: m[1], bold: true } : { t: m[2], color: '#2a6fb0', href: m[3] });
     last = re.lastIndex;
   }
   if (last < str.length) out.push({ t: str.slice(last) });
@@ -472,7 +477,9 @@ const LBL = { px: 10, bold: false, fill: '#6b4a36', outline: null, shadow: false
 // 开始页进化表和图鉴格子共用：按是否见过填图和名字
 function fillCell(d, k, gold = false) {
   const sk = seenKey(k, gold), on = seen.has(sk), im = d.querySelector(':scope > img');   // 不能用 querySelector('img')：选中时垫底小牌子里也有一张 img
-  if (on) im.src = spriteSrc(k, gold); else lockImg(k, (u) => { if (!seen.has(sk)) im.src = u; }, gold);
+  // canvas 读回不可靠的设备（pixui.js READ_OK）：剪影做不出来，直接贴原图、用 CSS 压成暗色（html.noread img.lk）
+  im.classList.toggle('lk', !on && !PX.readOk);
+  if (on || !PX.readOk) im.src = spriteSrc(k, gold); else lockImg(k, (u) => { if (!seen.has(sk)) im.src = u; }, gold);
   im.style.transform = !on && LOCK_NUDGE[k] ? `translate(${LOCK_NUDGE[k]})` : '';
   let q = d.querySelector('.q');
   if (!q) { q = document.createElement('span'); q.className = 'q'; d.appendChild(q); }
@@ -2491,6 +2498,7 @@ function keepBest() {
   if (!(score > bestNow && score > 0)) return false;
   if (M.dream) { dreamBest = score; localStorage.setItem('dfy_dream_best', dreamBest); }
   else { best = score; localStorage.setItem('dfy_best', best); }
+  if (window.TOY && achOn() && !DREAM_TEST) window.TOY.best();   // B站 Toy 版：新纪录交给排行榜（调试网址下不交）
   return true;
 }
 // 美梦入口的「连败」计数：普通局打到结束页、或者暂停页「放弃本局」都算一局（有人眼看要输就点放弃，不能白丢这一局）。
@@ -2911,6 +2919,7 @@ const NOTE_ON = false;   // 意见便签总开关（见下方「意见便签」�
     if (id === 'ovStart') startSash.wake(); else if (id === 'ovOver') overSash.wake(); else if (id === 'ovPause') pauseSash.wake();
     $('noteTab').classList.toggle('show', NOTE_ON && /^ov(Start|Over|Pause)$/.test(id));   // 意见便签：和角落 i 键同进同出（开始/结束/暂停页才有，2026-11-10 用户要求对齐）
     $('tutTab').classList.toggle('show', /^ov(Start|Over|Pause)$/.test(id));    // 教程「?」键：同上
+    $('rankTab').classList.toggle('show', !!window.TOY && /^ov(Start|Over|Pause)$/.test(id));   // 排行榜键：只有 B站 Toy 版有，占便签的位置
     hudPause(id === null && state === 'play');
     const dm = id === null && state === 'play';   // 2026-11-14 起普通模式也有（灌水）
     $('bShake').style.display = dm ? 'flex' : 'none'; $('shakeBar').style.display = dm ? 'block' : 'none';
@@ -2936,6 +2945,8 @@ function openCredit(back) { creditBack = back; show('ovCredit'); }
 // 输入框是系统字体的原生 textarea（玩家什么字都可能打，离线字模拼不出来）；草稿存 localStorage，关了页面也不丢。
 const NOTE_MAX = 300;
 const NOTE_PAGES = new Set(['ovStart', 'ovOver', 'ovPause']);   // 有角落 i 键（bCredit1/2/3）的页，便签只在这几页贴着（show() 里同一组写成正则）
+// B站 Toy 版不许有未经授权的自由输入：tools/build_toy.py 打包时把下面 toy-strip 标记之间的便签代码（和 index.html 里的输入框）整段删掉
+// <toy-strip>
 const noteEl = $('noteText');
 let noteBack = 'ovStart', noteBusy = false;
 noteEl.maxLength = NOTE_MAX; noteEl.placeholder = TX.意见.输入框提示;
@@ -2996,6 +3007,85 @@ $('noteTab').onclick = openNote;
 $('bNoteSend').onclick = sendNote;
 $('bNoteBack').onclick = closeNote;
 $('noteTab').classList.toggle('show', NOTE_ON && [...document.querySelectorAll('.ov.show')].some(o => NOTE_PAGES.has(o.id)));   // 刚打开网页：开始页已经显示着（没走 show()）
+// </toy-strip>
+
+// ---------------------------------------------------------------- 排行榜（只在 B站 Toy 版里有，2026-11-21）
+// toy.js 提供 window.TOY（GitHub Pages 版没有这个文件，入口不出现）。两个榜：1 = 普通模式最高分，2 = 美梦模式最高分（各算各的）。
+// 入口是开始/结束/暂停页左下角的方键（占原来意见便签的位置）。名次、分数用像素字；昵称是玩家的 B站 昵称，
+// 什么字都可能有，离线字模拼不出来，用系统字体（同便签输入框）。榜单拉一次缓存一分钟，不轮询（toy.js）。
+if (window.TOY) {
+  const TOY = window.TOY;
+  const RANK_COL = ['#c88a1e', '#7d8796', '#a8642e'];   // 前三名名次：金、银、铜
+  let rankBack = 'ovStart', rankBoard = 1, rankSeq = 0;
+  const clearPix = (el) => { for (const c of el.querySelectorAll('*')) fineList.delete(c); fineList.delete(el); el.replaceChildren(); };
+  const pixSpan = (str, opt) => { const sp = document.createElement('span'); sp.style.display = 'flex'; putText(sp, str, opt, 1); return sp; };
+  const avatarUrl = (u) => {
+    if (!u) return '';
+    if (u.startsWith('//')) u = 'https:' + u;
+    if (/hdslb\.com\/bfs\//.test(u) && !u.includes('@')) u += '@64w_64h';   // B站 图床按尺寸取小图
+    return u;
+  };
+  function rankMsg(key, fill = '#8a6a52') {
+    const el = $('rankList'); clearPix(el);
+    const d = document.createElement('div'); d.className = 'rankMsg';
+    d.appendChild(pixSpan(TX.排行榜[key], { ...BODY, fill }));
+    el.appendChild(d);
+  }
+  function rankRow(it) {
+    const r = document.createElement('div'); r.className = 'rrow';
+    const no = document.createElement('span'); no.className = 'rno';
+    no.appendChild(pixSpan(String(it.rank), { ...BODY, bold: true, fill: RANK_COL[it.rank - 1] || '#8a6a52' }));
+    const av = document.createElement('img'); av.className = 'rav'; av.alt = ''; av.referrerPolicy = 'no-referrer';
+    av.onerror = () => { av.removeAttribute('src'); };   // 没头像 / 加载失败：只剩底色方块，不显示破图标
+    const au = avatarUrl(it.avatar);
+    if (au) av.src = au;
+    const nm = document.createElement('span'); nm.className = 'rnm'; nm.textContent = it.nickname || '';
+    const sc = document.createElement('span'); sc.className = 'rsc';
+    sc.appendChild(pixSpan(String(it.score), { ...BODY, bold: true }));
+    r.append(no, av, nm, sc);
+    return r;
+  }
+  function rankMine(mine, err) {
+    const el = $('rankMine'); clearPix(el);
+    const opt = { ...BODY, fill: '#8a6a52' };
+    if (!mine) { if (err === 'login') el.appendChild(pixSpan(TX.排行榜.未登录, opt)); return; }
+    if (!mine.ranked) { el.appendChild(pixSpan(TX.排行榜.未上榜, opt)); return; }
+    el.append(pixSpan(fmt(TX.排行榜.我的名次, { n: mine.rank }), { ...opt, bold: true }), pixSpan(fmt(TX.排行榜.分数, { n: mine.score }), { ...opt, bold: true }));
+  }
+  async function loadRank(board) {
+    rankBoard = board;
+    $('bRank1').classList.toggle('on', board === 1); $('bRank2').classList.toggle('on', board === 2);
+    const seq = ++rankSeq;
+    rankMsg('加载中'); clearPix($('rankMine'));
+    const r = await TOY.rank(board);
+    if (seq !== rankSeq) return;   // 加载途中切了榜
+    if (r.list && r.list.length) {
+      const el = $('rankList'); clearPix(el);
+      for (const it of r.list) el.appendChild(rankRow(it));
+      el.scrollTop = 0;
+    } else if (r.list) rankMsg('空');
+    else rankMsg(r.err === 'busy' ? '太快' : '失败', '#c0532f');
+    rankMine(r.mine, r.err);
+  }
+  function openRank(back) {
+    rankBack = back;
+    if (back !== 'ovStart') rankBoard = M.dream ? 2 : 1;   // 结束页 / 暂停页点进来：先看这局所在模式的榜
+    show('ovRank'); beep([660, 880], 0.04);
+    loadRank(rankBoard);
+  }
+  setPix('tRank', TX.排行榜.标题, TITLE2);
+  setPix('bRank1', TX.排行榜.普通, BTN);
+  setPix('bRank2', TX.排行榜.美梦, BTN);
+  setPix('bRankBack', TX.按钮.返回, BTN);
+  const putRankIcon = () => PX.put($('rankTab'), PX.icon('podium'), 2, TX.鼠标悬停提示.排行榜);
+  putRankIcon(); fineList.set('rankIcon', putRankIcon);
+  $('rankTab').title = TX.鼠标悬停提示.排行榜;
+  $('rankTab').onclick = () => openRank([...document.querySelectorAll('.ov.show')].map(o => o.id).find(id => NOTE_PAGES.has(id)) || 'ovStart');
+  $('bRank1').onclick = () => { if (rankBoard !== 1) { beep([660], 0.03); loadRank(1); } };
+  $('bRank2').onclick = () => { if (rankBoard !== 2) { beep([660], 0.03); loadRank(2); } };
+  $('bRankBack').onclick = () => show(rankBack);
+  $('rankTab').classList.toggle('show', [...document.querySelectorAll('.ov.show')].some(o => NOTE_PAGES.has(o.id)));
+}
 
 // ---------------------------------------------------------------- 教程（2026-11-10）
 // 通用组件：一课 = 标题 + 几排「相框动画 + 一两行字」（相框左右交替）+ 底部按钮。相框里的动画都是用现成精灵现画的，不占体积。
@@ -4058,7 +4148,7 @@ function openTut(id, focus = null, back = null) {
   if (focus) setTimeout(() => { if (tutCur && tutCur.focus === focus) { btn.classList.remove('wait'); btn.classList.add('pop'); beep([784], 0.04, 'triangle', 0.04); } }, TUT_WAIT);
   if (focus && focus.under) {   // 盖在开始/结束/暂停页上：底下那页不藏（绶带在孔里接着动），角上的 i、便签、? 先收起来
     ov.classList.add('show'); $('ui').classList.add('tutOver');   // tutOver：底下那页角上的 i 也藏起来（它压在幕布上面）
-    for (const e of ['noteTab', 'tutTab']) $(e).classList.remove('show');
+    for (const e of ['noteTab', 'tutTab', 'rankTab']) $(e).classList.remove('show');
   } else show('ovTut');
   // 回看：按钮行锚在最高卡片下面——卡片位置一点不动，只把按钮行按高度差往下挪；聚焦弹窗不挪（用户只要回看）。
   // 用 position:relative 的 top 挪，不用 transform：transform 会把按钮行提成独立图层，悬停重绘时像素字会被重新栅格化，
