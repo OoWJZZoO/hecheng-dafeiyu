@@ -265,6 +265,7 @@
   .setBtn:hover{background:#fff1c8}
   .setBtn:active{background:#e9dcc4}
   html.nogap .setRow > * + *{margin-left:10px}
+  html.nogap .setRow > .seg{margin-left:12px}   /* 原来 = gap 10 + .seg 自己的 margin-left 2；上一条会把 .seg 自己的 2px 覆盖掉，补回来（否则旧内核上分段框偏左 2px） */
   html.nogap .setFoot > * + *{margin-left:14px}
   html.nogap .wipePips > * + *{margin-left:10px}
   /* 删存档确认框：整张卡片换成红色调（边框、底色、横格），「删除」键红底奶白字；每点一下键抖一下、记数格亮一格 */
@@ -338,7 +339,7 @@
   html.nogap .maxRow > * + *{margin-left:8px}
   html.nogap .col > * + *,html.nogap .menu > * + *{margin-top:14px}
   html.nogap .btn.ib > * + *{margin-left:6px}
-  html.nogap #hud .chip > * + *{margin-left:10px}
+  html.nogap #hud .chip > .n{margin-left:10px}   /* 只补 .ic 和 .n 之间的 gap；不能写成 > * + *：第三个子元素 #shakeBar 是 absolute，原版 gap 管不到它，margin 会把它推偏 10px */
   html.nogap .achInfo > * + *{margin-left:10px}
   html.nogap .storyHead > * + *{margin-left:8px}
   html.nogap .achInfo .atx > * + *{margin-top:5px}
