@@ -3,7 +3,26 @@
 // 系统字体每台设备不同，二值化后的点阵也不同；字模图保证所有设备一模一样。
 (() => {
 'use strict';
-const FONT = '"Microsoft YaHei","PingFang SC","Noto Sans CJK SC","Source Han Sans SC",sans-serif';
+// ---------------------------------------------------------------- 旧内核兼容（2026-11-21）
+// 玩家反馈整页没背景、没字、阶梯只剩空框、卡片挤在左上角：那台手机 B站 App 的 WebView 内核大约是 Chrome 80–83。
+// - 没有 Element.replaceChildren（Chrome 86）：第一次贴像素图（put）就抛异常，game.js 初始化停在半截，渲染循环没起来；
+// - flex 不认 gap（Chrome 84）、不认 inset（Chrome 87，index.html 已改成 top/right/bottom/left）。
+// 本文件在 game.js 之前加载，所以兼容补丁放这里。
+if (!Element.prototype.replaceChildren) {
+  const rc = function (...nodes) { while (this.lastChild) this.removeChild(this.lastChild); this.append(...nodes); };
+  Element.prototype.replaceChildren = rc; Document.prototype.replaceChildren = rc; DocumentFragment.prototype.replaceChildren = rc;
+}
+// flex 的 gap 生效没有：不生效就给 html 加 nogap，index.html 里用 margin 补同样的间距（grid 的 gap 旧内核本来就支持）
+(() => {
+  const d = document.createElement('div');
+  d.style.cssText = 'display:flex;flex-direction:column;row-gap:1px;position:absolute;visibility:hidden';
+  d.append(document.createElement('div'), document.createElement('div'));
+  document.body.appendChild(d);
+  const ok = d.scrollHeight === 1;
+  d.remove();
+  if (!ok) { document.documentElement.classList.add('nogap'); console.warn('[PixUI] 这个内核 flex 不认 gap，改用 margin'); }
+})();
+const FONT ='"Microsoft YaHei","PingFang SC","Noto Sans CJK SC","Source Han Sans SC",sans-serif';
 const INK = '#4a2e20';
 
 // ---------------------------------------------------------------- 字模

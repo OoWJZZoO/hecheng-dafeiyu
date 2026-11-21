@@ -18,10 +18,10 @@
   /* 所有界面在 360×704（2026-11-13 加高，原 360×640）的逻辑坐标里排，整体按画布同样的倍数缩放；一个美术像素 = 2 逻辑像素 */
   #ui{position:absolute;left:0;top:0;width:360px;height:704px;transform-origin:0 0;pointer-events:none}
   .ov.show{pointer-events:auto}
-  .ov{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;
+  .ov{position:absolute;top:0;right:0;bottom:0;left:0;display:none;flex-direction:column;align-items:center;justify-content:center;
     color:#fff6e0;text-align:center;z-index:0}
   /* 遮罩底色画在伸出去很远的 ::before 上，铺满整个窗口（构图外面露出来的背景一起压暗，只有一层，边缘没有接缝） */
-  .ov::before{content:"";position:absolute;inset:-4000px;background:rgba(43,29,22,.62);z-index:-1;pointer-events:none}
+  .ov::before{content:"";position:absolute;top:-4000px;right:-4000px;bottom:-4000px;left:-4000px;background:rgba(43,29,22,.62);z-index:-1;pointer-events:none}
   .ov.show{display:flex}
   /* 像素框：没有圆角，四角各缺一格，底边加厚当投影 */
   .px{--o:#4a2e20;
@@ -168,7 +168,7 @@
   #achGrid > div.off canvas.sp,.achInfo.off canvas.sp{filter:grayscale(1);opacity:.45}
   /* 镀金头像冒的金星：一张画布盖住整张成就卡（同图鉴的 #dexFx） */
   .card.ach{position:relative}
-  #achFxClip{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+  #achFxClip{position:absolute;top:0;right:0;bottom:0;left:0;overflow:hidden;pointer-events:none}
   #achFx{position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;image-rendering:pixelated;image-rendering:crisp-edges}
   .achInfo{height:64px;display:flex;align-items:center;gap:10px;padding:0 6px;margin-top:4px;border-top:2px dashed #cdbb98;padding-top:6px}
   .achInfo.none{justify-content:center}
@@ -180,7 +180,7 @@
   .storyHead .dia{display:block;flex:none}
   .achInfo .big{width:52px;height:52px;flex:none;cursor:default}
   .achInfo .atx{display:flex;flex-direction:column;align-items:flex-start;gap:5px}
-  #hud{position:absolute;inset:0;pointer-events:none}
+  #hud{position:absolute;top:0;right:0;bottom:0;left:0;pointer-events:none}
   #hud .icon{pointer-events:auto;position:absolute;top:10px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;
     background:#fff6e0;--hi:#fffdf4;--lo:#e2cfa8;cursor:pointer}
   #hud .icon:active{top:14px;box-shadow:0 -2px 0 0 var(--o),0 2px 0 0 var(--o),-2px 0 0 0 var(--o),2px 0 0 0 var(--o)}
@@ -262,7 +262,7 @@
   #noteCount{display:flex;margin-left:auto}
   #bNoteSend.busy{filter:grayscale(.6) brightness(.95);pointer-events:none}
   /* 加载页：盖住脚本还没跑完、界面还没排好的那一小会儿。不依赖任何外部文件（字模、精灵都还没到），位图全部内联画 */
-  #boot{position:fixed;inset:0;z-index:99;background:#2b1d16;display:flex;flex-direction:column;align-items:center;justify-content:center;--u:3px;
+  #boot{position:fixed;top:0;right:0;bottom:0;left:0;z-index:99;background:#2b1d16;display:flex;flex-direction:column;align-items:center;justify-content:center;--u:3px;
     background-image:linear-gradient(#34241b 2px,transparent 2px);background-size:100% 8px}
   #boot canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges}
   #boot.out{pointer-events:none;animation:bootOut .32s steps(4) forwards}
@@ -278,6 +278,26 @@
     box-shadow:0 calc(var(--u)*-1) 0 0 #fff6e0,0 var(--u) 0 0 #fff6e0,calc(var(--u)*-1) 0 0 0 #fff6e0,var(--u) 0 0 0 #fff6e0,0 calc(var(--u)*3) 0 0 #1a110c}
   #bootBar b{display:block;width:calc(var(--u)*3);height:calc(var(--u)*4);background:#6b4a36}
   #bootBar b.on{background:#ffd25e;box-shadow:inset 0 var(--u) 0 0 #ffeaa0,inset 0 calc(var(--u)*-1) 0 0 #e8a93a}
+  /* 旧内核（Chrome 84 以前）flex 不认 gap：pixui.js 检测到就给 html 加 nogap，这里用 margin 补出同样的间距。
+     改了上面哪条 flex 的 gap，这里对应的一条也要改（grid 的 gap 旧内核支持，不用补） */
+  html.nogap .btns > * + *{margin-left:14px}
+  html.nogap .menu .btns > * + *{margin-left:12px}
+  html.nogap #ladder > :nth-child(n+7){margin-top:8px}   /* 阶梯一排固定 6 个：第二排往下错开 8px，等于原来的行间 gap */
+  html.nogap .scoreRow > * + *{margin-left:4px}
+  html.nogap .maxRow > * + *{margin-left:8px}
+  html.nogap .col > * + *,html.nogap .menu > * + *{margin-top:14px}
+  html.nogap .btn.ib > * + *{margin-left:6px}
+  html.nogap #hud .chip > * + *{margin-left:10px}
+  html.nogap .achInfo > * + *{margin-left:10px}
+  html.nogap .storyHead > * + *{margin-left:8px}
+  html.nogap .achInfo .atx > * + *{margin-top:5px}
+  html.nogap .tutRow > * + *{margin-left:4px}
+  html.nogap .tutRow.flip > * + *{margin-left:0;margin-right:4px}
+  html.nogap .rankTabs > * + *{margin-left:10px}
+  html.nogap .rrow > * + *{margin-left:8px}
+  html.nogap .rankMsg > * + *{margin-top:6px}
+  html.nogap #bootRow > * + *{margin-left:calc(var(--u)*2)}
+  html.nogap #bootDots > * + *,html.nogap #bootBar > * + *{margin-left:var(--u)}
 </style>
 </head>
 <body>
@@ -500,7 +520,7 @@
 <script src="text.js?v=a899d9b8" onload="Boot.set(.12)"></script>
 <script src="sprites/shapes.js?v=8f3b00b8" onload="Boot.set(.15)"></script>
 <script src="sprites/ach.js?v=8f68d6e5" onload="Boot.set(.17)"></script>
-<script src="pixui.js?v=74297e5f" onload="Boot.set(.2)"></script>
+<script src="pixui.js?v=f07f4f92" onload="Boot.set(.2)"></script>
 <script>Promise.all([PixUI.ready, window.TOY_BOOT]).then(() => {   /* TOY_BOOT：Toy 版先读完云存档（toy.js），网页版没有 */ Boot.set(.4); const s = document.createElement('script'); s.src = 'game.js?v=6d3bf15c'; s.onload = () => Boot.set(.5); document.body.appendChild(s); });</script>
 </body>
 </html>
