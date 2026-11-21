@@ -2,7 +2,10 @@
 
 > 《按下发送之后》像素同人小游戏 —— 掉落合成，纯网页，打开就能玩。
 
-**▶ 在线试玩：<https://oowjzzoo.github.io/hecheng-dafeiyu/>**（手机、电脑浏览器都行，竖屏体验最好）
+**▶ 在线试玩**（手机、电脑都行，竖屏体验最好）：
+
+- **GitHub Pages**：<https://oowjzzoo.github.io/hecheng-dafeiyu/>（浏览器打开就玩，存档在本地）
+- **B站 Toy**：<https://www.bilibili.com/toy/hecheng_dafeiyu/index.html>（B站 App 或网页里玩，多了排行榜和云存档，见下文「B站 Toy 版」）
 
 粉丝向的免费同人小游戏。角色来自 **@Oo肥鱼O** 的 8-bit 像素动画《按下发送之后》：从上方丢东西，两个同级的碰在一起合成下一级，一路合到大肥鱼；堆过红线就结束。
 
