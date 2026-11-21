@@ -673,7 +673,7 @@ function newGame(pile) {
   ]);
   Events.on(engine, 'collisionStart', onCollide);
   Events.on(engine, 'collisionActive', onCollide);
-  fishStop = null; score = 0; maxTier = 0; effects = []; shake = 0; overTimer = 0; flash = 0; slow = 0; scoreGlow = 0;
+  fishStop = null; fishQueue.length = 0; score = 0; maxTier = 0; effects = []; shake = 0; overTimer = 0; flash = 0; slow = 0; scoreGlow = 0;
   cur = randTier(true); curGold = false; next = randTier(); nextGold = false; aimX = midX; canDrop = true; goldPity = 0;
   cdUntil = 0; lastDropped = null; thaw = null; fillJob = null; autoFire = false; locking = []; tutRun.clear();
   shk = null; shkTally = null; shakeGraceUntil = 0; box = { x: 0, y: 0, vx: 0, vy: 0 }; wat = null; watTally = null; watStain = 0;
@@ -1136,7 +1136,10 @@ function doMerges() {
     const tier = a.tier, golds = (a.gold ? 1 : 0) + (b.gold ? 1 : 0), gold = golds > 0;
     const x = (a.position.x + b.position.x) / 2, y = (a.position.y + b.position.y) / 2;
     if (tier === TIERS.length - 1) {          // 两条大肥鱼：先时停亮相，再一起消失，大加分
-      startFishStop(a, b, x, y, golds);
+      // 已经在时停里（同一步有两对大肥鱼相撞）：排队，等这一对演完再演下一对。
+      // 2026-11-21 修：原来直接覆盖 fishStop，前一对永远不会被删、merging 标记也不会清，两条鱼贴在一起再也不合（玩家反馈「卡死」）
+      if (fishStop) fishQueue.push([a, b]);
+      else startFishStop(a, b, x, y, golds);
       continue;
     }
     Composite.remove(world, a); Composite.remove(world, b);
@@ -1252,6 +1255,7 @@ function fxGoldFish(x, y, pts) {
 }
 // 两条大肥鱼相消前的时停：物理和特效全冻住，其余压暗 + 集中线；两条鱼原地从接触点扩散变白、再扩散消失，让玩家看清是这两条撞上了；结束时才炸开
 let fishStop = null;
+const fishQueue = [];   // 时停期间又撞上的大肥鱼对（见 doMerges），endFishStop 里接着演
 const FISH_STOP_MS = [560, 660, 760];
 function startFishStop(a, b, x, y, golds) {
   // x/y/ax…是世界坐标（endFishStop 放特效用）；sx/sy/sax…是屏幕逻辑坐标（时停画面是画在屏幕上的，美梦模式里两者不同）
@@ -1271,6 +1275,13 @@ function endFishStop() {
   fxFishPair(x, y, golds, pts);
   const pal = golds ? SPARK : BLUE, r = TIERS[a.tier].r;
   effects.push({ kind: 'ring', x, y, r: r * 0.2, vr: 7, life: 30, max: 30, pal });   // 额外一圈大冲击波
+  // 排队的下一对（时停里物理是冻住的，它们还在原地）；已经不在场上的跳过
+  while (fishQueue.length) {
+    const [c, d] = fishQueue.shift(), live = Composite.allBodies(world);
+    if (!live.includes(c) || !live.includes(d)) continue;
+    startFishStop(c, d, (c.position.x + d.position.x) / 2, (c.position.y + d.position.y) / 2, (c.gold ? 1 : 0) + (d.gold ? 1 : 0));
+    break;
+  }
 }
 // 时停音效：跟着画面两段走——变白（前 40%）、碎散（48%~88%）
 function sfxStop(g, dur) {
@@ -2747,7 +2758,7 @@ startSash.show(dreamSave.unlocked, { delay: 300, quiet: true });
 function toMenu(fresh = false) {
   M = NORMAL;
   if (GRID !== FINE) { GRID = FINE; resize(); }
-  state = 'title'; world = engine = null; effects = []; toast = null; shk = null; fishStop = null; thaw = null; fillJob = null; autoFire = false; pointerDown = false;
+  state = 'title'; world = engine = null; effects = []; toast = null; shk = null; fishStop = null; fishQueue.length = 0; thaw = null; fillJob = null; autoFire = false; pointerDown = false;
   show('ovStart'); startSash.show(dreamSave.unlocked, { fresh, delay: fresh ? 420 : 120, quiet: !fresh }); syncShakeChip(); beep([523, 392], 0.06);
 }
 if (DREAM_TEST) window.dfyStart = (dream = false) => start(dream);   // 控制台直接开一局（测结束页用）
