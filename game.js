@@ -465,7 +465,7 @@ for (const str of TX.署名页.段落) {
   putPara(p, markup(str), 240);
 }
 // 图标按钮的悬停提示
-for (const [id, key] of [['bSound', '声音'], ['bPause', '暂停'], ['bShake', '晃动'], ['bCredit1', '署名'], ['bCredit2', '署名'], ['bCredit3', '署名'], ['noteTab', '意见']]) document.getElementById(id).title = TX.鼠标悬停提示[key];
+for (const [id, key] of [['bSet', '设置'], ['bPause', '暂停'], ['bShake', '晃动'], ['bCredit1', '署名'], ['bCredit2', '署名'], ['bCredit3', '署名'], ['noteTab', '意见']]) document.getElementById(id).title = TX.鼠标悬停提示[key];
 setPix('tTitle', TX.标题.游戏名, TITLE);
 setPix('tOver', TX.标题.结束页, TITLE);
 setPix('tSub', TX.标题.副标题, { px: 12, bold: false, fill: '#fff6e0', thr: 90 }, 1);
@@ -551,10 +551,10 @@ putMarked('dcf2', TX.美梦.进入确认警告, BODY, { ...BODY, fill: '#c8402f'
 setPix('dcf3', TX.美梦.进入确认说明, { ...BODY, px: 10, fill: '#8a6a52' }, 1);
 setPix('bDreamYes', TX.美梦.进入, BTN);
 setPix('bDreamNo', TX.按钮.取消, BTN);
-setPix('wipe1', TX.清空存档.标题, { ...BODY, px: 13, bold: true }, 1);
+setPix('wipe1', TX.清空存档.标题, { ...BODY, px: 13, bold: true, fill: '#c8402f' }, 1);
 setPix('wipe2', TX.清空存档.说明, BODY, 1);
 putMarked('wipe3', TX.清空存档.警告, BODY, { ...BODY, fill: '#c8402f', bold: true });
-setPix('bWipeYes', TX.清空存档.确定, BTN);
+setPix('bWipeYes', TX.清空存档.确定, { ...BTN, fill: '#fff6e0' });
 setPix('bWipeNo', TX.按钮.取消, BTN);
 setPix('pScoreLbl', TX.暂停页.当前得分, { ...BODY, fill: '#8a6a52' }, 1);
 setPix('tDex', TX.图鉴.标题, TITLE2);
@@ -583,6 +583,7 @@ const putIcons = () => {
   const h = document.getElementById('bStart').offsetHeight || 34;
   for (const id of ['bCredit1', 'bCredit2', 'bCredit3']) PX.put(document.getElementById(id), PX.icon('info'), 2, TX.鼠标悬停提示.署名);
   PX.put(document.getElementById('bPause'), PX.icon('pause'), 2, TX.鼠标悬停提示.暂停);
+  PX.put(document.getElementById('bSet'), PX.icon('gear'), 2, TX.鼠标悬停提示.设置);
   putChipIcon();
   PX.put(document.getElementById('noteTab'), PX.icon('note'), 2, TX.鼠标悬停提示.意见);
   PX.put(document.getElementById('notePin'), PX.bitmap(NOTE_PIN, NOTE_PIN_PAL), 2);
@@ -591,9 +592,30 @@ function putChipIcon() { const w = !M.dream; PX.put(document.querySelector('#bSh
 putIcons(); fineList.set('icons', putIcons);
 
 // ---------------------------------------------------------------- 声音（8-bit 方波，现场合成）
-let audio = null, soundOn = localStorage.getItem('dfy_sound') !== '0';
+// 设置（设置页，2026-11-21）：存 localStorage.dfy_set = {bgm, sfx: 0–100, bgmMute, sfxMute, fx: 粒子档 0 关 / 1 低 / 2 中 / 3 高, shake: 屏幕震动开关}。
+// 音量 80 = 改版前的响度（默认），最高 100；旧存档只有声音开关 dfy_sound，'0'（关）就两样都静音。
+const SET_DEF = { bgm: 80, sfx: 80, bgmMute: false, sfxMute: false, fx: 3, shake: true };
+const SET = (() => {
+  let o = null;
+  try { o = JSON.parse(localStorage.getItem('dfy_set') || 'null'); } catch {}
+  if (!o) { const off = localStorage.getItem('dfy_sound') === '0'; o = { bgmMute: off, sfxMute: off }; }
+  const s = { ...SET_DEF, ...o }, clip = (v, d) => (Number.isFinite(+v) ? Math.max(0, Math.min(100, Math.round(+v))) : d);
+  s.bgm = clip(s.bgm, 80); s.sfx = clip(s.sfx, 80); s.fx = [0, 1, 2, 3].includes(+s.fx) ? +s.fx : 3; s.bgmMute = !!s.bgmMute; s.sfxMute = !!s.sfxMute; s.shake = s.shake !== false;
+  return s;
+})();
+const saveSet = () => localStorage.setItem('dfy_set', JSON.stringify(SET));
+const SET_PAGES = /^ov(Start|Over|Pause)$/;   // 有设置键的页（和角落 i / ? 键同一组；局内另算，见 show()）
+const sfxOn = () => !SET.sfxMute && SET.sfx > 0;
+const bgmOn = () => !SET.bgmMute && SET.bgm > 0;
+// 音效都接到这条总线上（不再直连 audio.destination），音量 = 设置值 / 80
+let audio = null, sfxBus = null;
+function sfxOut() {
+  if (!sfxBus || sfxBus.context !== audio) { sfxBus = audio.createGain(); sfxBus.connect(audio.destination); }
+  sfxBus.gain.value = SET.sfx / 80;
+  return sfxBus;
+}
 function beep(freqs, dur = 0.08, type = 'square', vol = 0.06) {
-  if (!soundOn) return;
+  if (!sfxOn()) return;
   try {
     audio = audio || new (window.AudioContext || window.webkitAudioContext)();
     const t0 = audio.currentTime;
@@ -602,7 +624,7 @@ function beep(freqs, dur = 0.08, type = 'square', vol = 0.06) {
       o.type = type; o.frequency.value = f;
       const s = t0 + i * dur;
       g.gain.setValueAtTime(vol, s); g.gain.exponentialRampToValueAtTime(0.0001, s + dur * 1.6);
-      o.connect(g).connect(audio.destination); o.start(s); o.stop(s + dur * 1.7);
+      o.connect(g).connect(sfxOut()); o.start(s); o.stop(s + dur * 1.7);
     });
   } catch (e) {}
 }
@@ -630,7 +652,7 @@ const sfxLid = () => beep([196, 147], 0.035, 'square', 0.05);
 const sfxWaterRise = () => beep([262, 330, 392, 494, 587, 698], 0.07, 'square', 0.028);
 const sfxWaterEnd = () => beep([587, 494, 392, 330, 262], 0.07, 'triangle', 0.04);
 const sfxJolt = (m) => {
-  if (!soundOn) return;
+  if (!sfxOn()) return;
   try {
     audio = audio || new (window.AudioContext || window.webkitAudioContext)();
     const T = audio.currentTime, v = Math.min(1, m / 9);
@@ -638,25 +660,25 @@ const sfxJolt = (m) => {
     noise(0.12, 0.03 + v * 0.04, 700, T);
   } catch (e) {}
 };
-const bSound = document.getElementById('bSound');
-const syncSound = () => PX.put(bSound, PX.icon(soundOn ? 'sound' : 'mute'), 2, soundOn ? TX.鼠标悬停提示.声音开 : TX.鼠标悬停提示.声音关);
-fineList.set('sound', () => syncSound());
-bSound.onclick = () => { soundOn = !soundOn; localStorage.setItem('dfy_sound', soundOn ? '1' : '0'); syncSound(); beep([660]); bgmSync(); };
-syncSound();
 
 // ---------------------------------------------------------------- 背景音乐（bgm.js：现场合成的 8-bit 3/4 拍圆舞曲，普通 / 美梦各一首，采样级无缝循环）
 // 和音效共用同一个 AudioContext（attach）。开始页就放普通那首；之后跟着模式走（普通 ↔ 美梦，bgm.js 里做淡出 → 淡入）。
 // 浏览器要用户点过才许出声：页面一加载先试着直接起（允许自动播放就当场响），不允许的话 AudioContext 是挂起的，
 // 第一次点 / 按任何地方时唤醒（文件最末 bgmWake）。
-// 静音：连调度一起停（不白白合成听不见的音符），再开声音从头起；局内以外的页面（暂停、结束、图鉴……）压低音量（show 里的 setDuck；开始页和它的子页不压）。
-// bgm.js 没载到也不影响游戏（window.BGM 为空就什么都不做）。
+// 静音（设置页里静音或拉到 0）：连调度一起停（不白白合成听不见的音符），再开声音从头起；局内以外的页面（暂停、结束、图鉴……）压低音量（show 里的 setDuck；开始页和它的子页、设置页不压）。
+// 音量：设置值 80 = bgm.js 原来的 0.28。bgm.js 没载到也不影响游戏（window.BGM 为空就什么都不做）。
+const BGM_AT80 = 0.28;
 function bgmSync() {
   const B = window.BGM;
-  if (!B) return;
   try {
-    if (!soundOn) { B.setMuted(true); B.stop(0.06); return; }
+    if (!bgmOn()) {
+      if (B) { B.setMuted(true); B.stop(0.06); }
+      if (sfxOn() && audio && audio.state === 'suspended') audio.resume().catch(() => {});   // 只开音效时也要把挂起的音频环境叫醒
+      return;
+    }
+    if (!B) return;
     audio = audio || new (window.AudioContext || window.webkitAudioContext)();
-    B.attach(audio); B.setMuted(false);
+    B.attach(audio); B.setVolume(BGM_AT80 * SET.bgm / 80); B.setMuted(false);
     B.play(M.dream ? 'dream' : 'normal');
   } catch (e) {}
 }
@@ -666,6 +688,14 @@ let engine, world;
 let score, best = +localStorage.getItem('dfy_best') || 0, maxTier;
 let cur, next, curGold = false, nextGold = false, aimX = W / 2, canDrop, state = 'title', overTimer = 0, effects = [], shake = 0;
 let flash = 0, slow = 0, scoreGlow = 0;
+// 粒子特效档位（设置页）：碎屑 p、金星 s、气泡 bub、甩出的灰 dust、时停碎片 px 按比例随机丢掉一部分，冲击波 ring 只在「关」时不要。
+// 高 = 改版前的样子。飞金豆、加分数字、大字标题这些带信息的不算粒子，不受影响
+const FX_KEEP = [0, 0.25, 0.5, 1];
+function addFx(e) {
+  const lv = SET.fx;
+  if (lv < 3 && (lv === 0 || (e.kind !== 'ring' && Math.random() >= FX_KEEP[lv]))) return;
+  effects.push(e);
+}
 
 // ---- 美梦模式的存档：dfy_dream = {miss: 连续几局没合出大肥鱼, unlocked: 是否已解锁入口, entered: 是否进过美梦（没进过绶带就蹦跶诱导）}；dfy_dream_best = 美梦模式自己的最高分（和正式最高分分开）
 const dreamSave = (() => { try { return { miss: 0, unlocked: false, ...JSON.parse(localStorage.getItem('dfy_dream') || '{}') }; } catch { return { miss: 0, unlocked: false }; } })();
@@ -866,7 +896,7 @@ function joltDust(ax, ay, n = 6) {
     } else {                              // 上下甩：从底边两角喷
       x = Math.random() < 0.5 ? L + Math.random() * 30 : R - Math.random() * 30; y = F + 4; vx = (Math.random() - .5) * 1.6; vy = -0.4 - Math.random() * 0.6;
     }
-    effects.push({ kind: 'dust', scr: true, x, y, vx, vy, life: 14 + Math.random() * 10 | 0, max: 24 });
+    addFx({ kind: 'dust', scr: true, x, y, vx, vy, life: 14 + Math.random() * 10 | 0, max: 24 });
   }
 }
 // 攒到能量豆：n 颗金豆从来源处（分数 / 两条大肥鱼消失的地方）沿弧线飞到顶栏的九宫格，到了才亮（新亮的先白闪一下，键弹一下）。
@@ -1027,12 +1057,12 @@ function stepWaterDrag(dt) {
 const WATER_PAL = ['#ffffff', '#bfe0d4', '#6f9c8c', '#456053'];   // 水花：白 → 浅海绿 → 海平线色
 function waterSplash(cx) {
   const y = M.floor - 6;
-  effects.push({ kind: 'ring', x: cx, y, r: 4, vr: 3, life: 18, max: 18, pal: WATER_PAL });
+  addFx({ kind: 'ring', x: cx, y, r: 4, vr: 3, life: 18, max: 18, pal: WATER_PAL });
   for (let i = 0; i < 16; i++) {
     const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.2, sp = 1.5 + Math.random() * 2.5;
-    effects.push({ kind: 'p', x: cx + (Math.random() - 0.5) * 12, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1, life: 24 + Math.random() * 14, color: WATER_PAL[1 + (Math.random() * 3 | 0)] });
+    addFx({ kind: 'p', x: cx + (Math.random() - 0.5) * 12, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1, life: 24 + Math.random() * 14, color: WATER_PAL[1 + (Math.random() * 3 | 0)] });
   }
-  for (let i = 0; i < 8; i++) effects.push({ kind: 'bub', x: cx + (Math.random() - 0.5) * 40, y: y - Math.random() * 10, vy: -(0.8 + Math.random()) * M.k, ph: Math.random() * 6, big: i % 3 === 0, life: 80, max: 80 });
+  for (let i = 0; i < 8; i++) addFx({ kind: 'bub', x: cx + (Math.random() - 0.5) * 40, y: y - Math.random() * 10, vy: -(0.8 + Math.random()) * M.k, ph: Math.random() * 6, big: i % 3 === 0, life: 80, max: 80 });
 }
 
 let firstDrops = 0;
@@ -1069,7 +1099,7 @@ function stepGoldTimers() {
     const r = TIERS[b.tier].r;
     for (let i = 0; i < 10 + r / 3; i++) {   // 金粉往上飘散
       const a = Math.random() * Math.PI * 2, sp = 0.4 + Math.random() * 1.2;
-      effects.push({ kind: 'p', x: b.position.x + Math.cos(a) * r * 0.6, y: b.position.y + Math.sin(a) * r * 0.6, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1.2, life: 26 + Math.random() * 16, color: SPARK[1 + (Math.random() * 3 | 0)] });
+      addFx({ kind: 'p', x: b.position.x + Math.cos(a) * r * 0.6, y: b.position.y + Math.sin(a) * r * 0.6, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1.2, life: 26 + Math.random() * 16, color: SPARK[1 + (Math.random() * 3 | 0)] });
     }
     twinkles(b.position.x, b.position.y, r, 4);
     sfxGoldFade();
@@ -1291,7 +1321,7 @@ function endFishStop() {
   flash = 1; // 白闪一下再交给下面的配色
   fxFishPair(x, y, golds, pts);
   const pal = golds ? SPARK : BLUE, r = TIERS[a.tier].r;
-  effects.push({ kind: 'ring', x, y, r: r * 0.2, vr: 7, life: 30, max: 30, pal });   // 额外一圈大冲击波
+  addFx({ kind: 'ring', x, y, r: r * 0.2, vr: 7, life: 30, max: 30, pal });   // 额外一圈大冲击波
   // 排队的下一对（时停里物理是冻住的，它们还在原地）；已经不在场上的跳过
   while (fishQueue.length) {
     const [c, d] = fishQueue.shift(), live = Composite.allBodies(world);
@@ -1302,7 +1332,7 @@ function endFishStop() {
 }
 // 时停音效：跟着画面两段走——变白（前 40%）、碎散（48%~88%）
 function sfxStop(g, dur) {
-  if (!soundOn) return;
+  if (!sfxOn()) return;
   try {
     audio = audio || new (window.AudioContext || window.webkitAudioContext)();
     const T = audio.currentTime, D = dur / 1000, tW = T, tS = T + D * 0.48, lenS = D * 0.4;
@@ -1318,13 +1348,13 @@ function tone(f, len, type, vol, at, tail = 0) {
   const o = audio.createOscillator(), gn = audio.createGain();
   o.type = type; o.frequency.value = f;
   gn.gain.setValueAtTime(vol, at); gn.gain.exponentialRampToValueAtTime(0.0001, at + len + tail);
-  o.connect(gn).connect(audio.destination); o.start(at); o.stop(at + len + tail + 0.02);
+  o.connect(gn).connect(sfxOut()); o.start(at); o.stop(at + len + tail + 0.02);
 }
 function sweep(f0, f1, len, type, vol, at) {
   const o = audio.createOscillator(), gn = audio.createGain();
   o.type = type; o.frequency.setValueAtTime(f0, at); o.frequency.exponentialRampToValueAtTime(f1, at + len);
   gn.gain.setValueAtTime(vol, at); gn.gain.exponentialRampToValueAtTime(0.0001, at + len * 1.2);
-  o.connect(gn).connect(audio.destination); o.start(at); o.stop(at + len * 1.3);
+  o.connect(gn).connect(sfxOut()); o.start(at); o.stop(at + len * 1.3);
 }
 let noiseBuf = null;
 function noiseSrc() {
@@ -1340,7 +1370,7 @@ function noise(len, vol, hp, at) {   // 碎裂的噼啪：高通噪声，音量�
   f.type = 'highpass'; f.frequency.value = hp;
   for (let i = 0; i < 6; i++) gn.gain.setValueAtTime(vol * (1 - i / 6) * (i % 2 ? 0.4 : 1), at + len * i / 6);
   gn.gain.setValueAtTime(0, at + len);
-  n.connect(f).connect(gn).connect(audio.destination); n.start(at); n.stop(at + len + 0.02);
+  n.connect(f).connect(gn).connect(sfxOut()); n.start(at); n.stop(at + len + 0.02);
 }
 function drawFishStop(now) {
   const S = fishStop, k = Math.min(1, S.t / S.dur), gold = S.golds > 0, P = gold ? SPARK : BLUE;
@@ -1383,7 +1413,7 @@ const FS_CELL = 8;
 // 碎屑：一块 6×6 → 4 → 2 的像素方块，从接触点往外飞、略往上飘，走 effects（时停里单独推进）
 function fishShard(S, x, y, gold) {
   const dx = x - S.sx, dy = y - S.sy, l = Math.hypot(dx, dy) || 1, sp = 0.6 + Math.random() * 1.4;
-  effects.push({ kind: 'px', scr: true, x, y, vx: dx / l * sp + (Math.random() - .5) * .6, vy: dy / l * sp - 0.6 - Math.random() * .8,
+  addFx({ kind: 'px', scr: true, x, y, vx: dx / l * sp + (Math.random() - .5) * .6, vy: dy / l * sp - 0.6 - Math.random() * .8,
     life: 26 + Math.random() * 18 | 0, max: 44, pal: gold ? SPARK : BLUE });
 }
 function stepShard(e) { e.x += e.vx; e.y += e.vy; e.vx *= 0.97; e.vy = e.vy * 0.97 - 0.02; }
@@ -1461,7 +1491,7 @@ function burst(x, y, color, r) {
   const n = 8 + Math.floor(r / 6);
   for (let i = 0; i < n; i++) {
     const a = Math.random() * Math.PI * 2, s = 1 + Math.random() * 2.5;
-    effects.push({ kind: 'p', x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 1, life: 30 + Math.random() * 15, color });
+    addFx({ kind: 'p', x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 1, life: 30 + Math.random() * 15, color });
   }
 }
 // 文字类特效（分数大字、金字标题、名字）都是屏幕上的东西：美梦模式里创建时就把世界坐标换成屏幕坐标，字不跟着缩小
@@ -1521,17 +1551,17 @@ let flashCol = FLASH_GOLD;
 function twinkles(x, y, r, n, pal, scr = false) {   // scr：x/y/r 已经是屏幕坐标
   for (let i = 0; i < n; i++) {
     const a = Math.random() * Math.PI * 2, d = Math.random() * r;
-    effects.push({ kind: 's', scr, x: x + Math.cos(a) * d, y: y + Math.sin(a) * d, vx: 0, vy: -0.2, g: 0, life: 18 + Math.random() * 20, big: Math.random() < 0.3, pal });
+    addFx({ kind: 's', scr, x: x + Math.cos(a) * d, y: y + Math.sin(a) * d, vx: 0, vy: -0.2, g: 0, life: 18 + Math.random() * 20, big: Math.random() < 0.3, pal });
   }
 }
 function goldBurst(x, y, r, big, pal) {
   const n = 18 + Math.floor(r / 2) + Math.floor(big * 30);
   for (let i = 0; i < n; i++) {
     const a = Math.random() * Math.PI * 2, sp = 1.5 + Math.random() * (2.5 + big * 3);
-    effects.push({ kind: 's', x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1.5, g: 0.08, drag: 0.96, life: 40 + Math.random() * 30, big: Math.random() < 0.35, pal });
+    addFx({ kind: 's', x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1.5, g: 0.08, drag: 0.96, life: 40 + Math.random() * 30, big: Math.random() < 0.35, pal });
   }
-  effects.push({ kind: 'ring', x, y, r: r * 0.6, vr: 3 + big * 3, life: 22, max: 22, pal });
-  if (big > 0.5) effects.push({ kind: 'ring', x, y, r: r * 0.3, vr: 2 + big * 2, life: 30, max: 30, pal });
+  addFx({ kind: 'ring', x, y, r: r * 0.6, vr: 3 + big * 3, life: 22, max: 22, pal });
+  if (big > 0.5) addFx({ kind: 'ring', x, y, r: r * 0.3, vr: 2 + big * 2, life: 30, max: 30, pal });
 }
 // 金字标题：弹出（先大一号、发白光）→ 流光扫过 → 周围冒星 → 缓缓上浮，最后闪烁消失
 const titleCache = new Map();
@@ -1731,7 +1761,7 @@ function drawToast() {
   drawToastBox(a, L, x, y, t, toast.stars || (toast.stars = []));
 }
 function coinRain(n) {
-  for (let i = 0; i < n; i++) effects.push({ kind: 's', scr: true, x: WALL_L + Math.random() * (WALL_R - WALL_L), y: -10 - Math.random() * 220, vx: (Math.random() - .5) * .4, vy: 1.5 + Math.random() * 2, g: 0.03, life: 170, big: Math.random() < 0.4 });
+  for (let i = 0; i < n; i++) addFx({ kind: 's', scr: true, x: WALL_L + Math.random() * (WALL_R - WALL_L), y: -10 - Math.random() * 220, vx: (Math.random() - .5) * .4, vy: 1.5 + Math.random() * 2, g: 0.03, life: 170, big: Math.random() < 0.4 });
 }
 function drawSpark(e) {
   // 十字星：2×2 像素一格对齐到美术网格；闪烁时换颜色
@@ -2175,9 +2205,10 @@ function render(now) {
   fxTick = stepSeq - fxSeq; fxSeq = stepSeq;
   // 震屏：偏移和衰减按「步」算（每走一步换一次偏移、衰减一次），不按画了几帧算——原来写在这里每帧衰减，
   // 120Hz 的屏上震动只有 60Hz 屏的一半长。背景不跟着震（2026-11-13，背景在 #backdrop 上）
+  // 设置页关了屏幕震动：不偏移，衰减照走（中途再打开不会补震一下）
   if (shakeSeq !== stepSeq) {
     if (shake > 0) {
-      shakeX = (Math.random() - .5) * shake; shakeY = (Math.random() - .5) * shake;
+      if (SET.shake) { shakeX = (Math.random() - .5) * shake; shakeY = (Math.random() - .5) * shake; } else shakeX = shakeY = 0;
       for (let n = stepSeq - shakeSeq; n > 0 && shake > 0; n--) { shake *= 0.85; if (shake < .5) shake = 0; }
     } else shakeX = shakeY = 0;
     shakeSeq = stepSeq;
@@ -2358,11 +2389,11 @@ function ambient() {
   // 灌水时水里冒气泡（底下、泡着的球身上）
   if (wat && wat.level > 0.05) {
     const wy = M.floor - (M.floor - M.top) * wat.level;
-    if (Math.random() < 0.12) effects.push({ kind: 'bub', x: M.wl + 6 * M.k + Math.random() * (M.wr - M.wl - 12 * M.k), y: M.floor - 4 * M.k, vy: -(0.8 + Math.random() * 1.0) * M.k, ph: Math.random() * 6, big: Math.random() < 0.3, life: 90, max: 90 });
+    if (Math.random() < 0.12) addFx({ kind: 'bub', x: M.wl + 6 * M.k + Math.random() * (M.wr - M.wl - 12 * M.k), y: M.floor - 4 * M.k, vy: -(0.8 + Math.random() * 1.0) * M.k, ph: Math.random() * 6, big: Math.random() < 0.3, life: 90, max: 90 });
     if (Math.random() < 0.12) {
       const wet = bodies.filter(b => b.wetF > 0.6 && b.tier !== undefined && b.position.y > wy + 20 * M.k);
       const b = wet[Math.floor(Math.random() * wet.length)];
-      if (b) effects.push({ kind: 'bub', x: b.position.x + (Math.random() - 0.5) * TIERS[b.tier].r, y: b.bounds.min.y, vy: -(0.8 + Math.random() * 0.8) * M.k, ph: Math.random() * 6, big: Math.random() < 0.2, life: 70, max: 70 });
+      if (b) addFx({ kind: 'bub', x: b.position.x + (Math.random() - 0.5) * TIERS[b.tier].r, y: b.bounds.min.y, vy: -(0.8 + Math.random() * 0.8) * M.k, ph: Math.random() * 6, big: Math.random() < 0.2, life: 70, max: 70 });
     }
   }
   // 手上的、预告的是镀金的：也冒星
@@ -2946,12 +2977,13 @@ const NOTE_ON = false;   // 意见便签总开关（见下方「意见便签」�
   show = (id) => {
     if (id === 'ovStart' || id === 'ovOver') refreshLadder();
     _show(id);
-    if (window.BGM) BGM.setDuck(id !== null && state !== 'title');   // 局内（没有遮罩页）和开始页（含从它点进去的图鉴 / 成就 / 署名）全音量，暂停 / 结束等页面压低
+    if (window.BGM) BGM.setDuck(id !== null && state !== 'title' && id !== 'ovSet');   // 局内（没有遮罩页）和开始页（含从它点进去的图鉴 / 成就 / 署名）全音量，暂停 / 结束等页面压低；设置页不压（调音量时听到的就是局内的响度）
     if (id === 'ovStart') startSash.wake(); else if (id === 'ovOver') overSash.wake(); else if (id === 'ovPause') pauseSash.wake();
     $('noteTab').classList.toggle('show', NOTE_ON && /^ov(Start|Over|Pause)$/.test(id));   // 意见便签：和角落 i 键同进同出（开始/结束/暂停页才有，2026-11-10 用户要求对齐）
     $('tutTab').classList.toggle('show', /^ov(Start|Over|Pause)$/.test(id));    // 教程「?」键：同上
     $('rankTab').classList.toggle('show', !!window.TOY && /^ov(Start|Over|Pause)$/.test(id));   // 排行榜键：只有 B站 Toy 版有，占便签的位置
     hudPause(id === null && state === 'play');
+    $('bSet').classList.toggle('show', SET_PAGES.test(id) || (id === null && state === 'play'));   // 设置键 = 角落 i / ? 键的页（开始/结束/暂停）+ 局内（暂停键在的时候）
     const dm = id === null && state === 'play';   // 2026-11-14 起普通模式也有（灌水）
     $('bShake').style.display = dm ? 'flex' : 'none'; $('shakeBar').style.display = dm ? 'block' : 'none';
     if (dreamBar) { dreamBar.style.display = id === null && state === 'play' ? 'flex' : 'none'; dreamSwitch.textContent = M.dream ? '回普通' : '进美梦'; }
@@ -2967,6 +2999,89 @@ function pause() {
 }
 function resume() { state = 'play'; last = performance.now(); show(null); bgmSync(); }   // bgmSync：手机切后台回来音频环境可能被系统挂起，点「继续」这下用户手势里顺便唤醒
 function openCredit(back) { creditBack = back; show('ovCredit'); }
+
+// ---------------------------------------------------------------- 设置页（2026-11-21）
+// 入口是右上角的齿轮键 #bSet（原来音量键的位置），显示时机 = 角落 i / ? 键的页（开始 / 结束 / 暂停）+ 局内。
+// 局内点开：和暂停一样把这局冻住，「返回」直接回到局内；从开始 / 结束 / 暂停页点开，「返回」回那一页。
+// 调的东西：背景音乐、音效（0–100，默认 80；左边的喇叭键静音 / 取消静音），粒子特效档位（关 / 低 / 中 / 高），屏幕震动（开 / 关）；
+// 卡片底下「恢复默认」（二次确认）。改了立刻生效、立刻存档（dfy_set）。
+let setBack = null;   // null = 从局内点开的
+function openSet() {
+  const from = [...document.querySelectorAll('.ov.show')].map(o => o.id).find(id => SET_PAGES.test(id));
+  if (from) setBack = from;
+  else {
+    if (state !== 'play' || fishStop) return;   // 时停（大肥鱼相撞）里和暂停键一样不理
+    state = 'paused'; pointerDown = false; if (shk) shk.drag = null;
+    setBack = null;
+  }
+  show('ovSet'); beep([660], 0.05);
+  setDraw();
+}
+$('bSet').onclick = openSet;
+$('bSetBack').onclick = () => { if (setBack) show(setBack); else resume(); };
+setPix('tSet', TX.设置.标题, TITLE2);
+for (const [id, key] of [['sBgmL', '背景音乐'], ['sSfxL', '音效'], ['sFxL', '粒子特效'], ['sShkL', '屏幕震动']]) setPix(id, TX.设置[key], { ...BODY, px: 13 }, 1);   // 设置页小字一律不加粗（加粗的像素字笔画粘连，2026-11-22 用户）
+setPix('bSetBack', TX.按钮.返回, BTN);
+setPix('bSetReset', TX.设置.恢复默认, BODY, 1);   // 小一号：不抢上面控件的眼
+setPix('bSetWipe', TX.清空存档.入口, { ...BODY, fill: '#c8402f' }, 1);   // 删存档：红字，和「恢复默认」并排（确认框见文件末尾「删除全部存档」）
+// 恢复默认：二次确认（文案不标红），确定后全部回到 SET_DEF、回设置页
+setPix('rst1', TX.设置.恢复确认标题, { ...BODY, px: 13, bold: true }, 1);
+setPix('rst2', TX.设置.恢复确认说明, { ...BODY, fill: '#8a6a52' }, 1);
+setPix('bRstYes', TX.设置.确定恢复, BTN);
+setPix('bRstNo', TX.按钮.取消, BTN);
+$('bSetReset').onclick = () => show('ovSetReset');
+$('bRstNo').onclick = () => { show('ovSet'); setDraw(); };
+$('bRstYes').onclick = () => { Object.assign(SET, SET_DEF); saveSet(); show('ovSet'); setDraw(); bgmSync(); beep([523, 659, 784], 0.05); };
+const SET_SLD = [['bgm', 'bgmMute', 'sBgm'], ['sfx', 'sfxMute', 'sSfx']];
+// 分段键：粒子档位（关 / 低 / 中 / 高）、屏幕震动（开 / 关）
+function segBtns(box, labels, pick) {
+  return labels.map((t, i) => {
+    const b = document.createElement('span');
+    b.onclick = () => pick(i);
+    $(box).appendChild(b);
+    return b;
+  });
+}
+const fxTabs = segBtns('sFx', TX.设置.档位, (i) => { if (SET.fx === i) return; SET.fx = i; saveSet(); setDraw(); beep([523 + i * 131], 0.05); });
+const shkTabs = segBtns('sShk', TX.设置.开关, (i) => { const on = i === 0; if (SET.shake === on) return; SET.shake = on; saveSet(); setDraw(); beep([on ? 784 : 523], 0.05); });
+const SEG_TXT = { ...BODY, px: 13 };
+const putSegs = () => { fxTabs.forEach((b, i) => putText(b, TX.设置.档位[i], SEG_TXT, 1)); shkTabs.forEach((b, i) => putText(b, TX.设置.开关[i], SEG_TXT, 1)); };
+function setDraw() {
+  for (const [v, m, id] of SET_SLD) {
+    const off = SET[m] || SET[v] === 0, sl = $(id), w = sl.offsetWidth || 120, p = SET[v] / 100;
+    sl.classList.toggle('off', off);
+    sl.querySelector('.fil').style.width = Math.round(p * (w - 16) / 2) * 2 + 'px';
+    sl.querySelector('.kn').style.left = Math.round((8 + p * (w - 16) - 6) / 2) * 2 + 'px';
+    sl.title = String(SET[v]);
+    PX.put($(id + 'M'), PX.icon(off ? 'mute' : 'sound'), 2, off ? TX.鼠标悬停提示.取消静音 : TX.鼠标悬停提示.静音);
+  }
+  fxTabs.forEach((b, i) => b.classList.toggle('on', SET.fx === i));
+  shkTabs.forEach((b, i) => b.classList.toggle('on', SET.shake === (i === 0)));
+}
+for (const [v, m, id] of SET_SLD) {
+  // 喇叭键：静音 / 取消静音（音量是 0 时取消静音顺手拉回默认 80，不然点了还是没声）
+  $(id + 'M').onclick = () => {
+    if (SET[m] || SET[v] === 0) { SET[m] = false; if (SET[v] === 0) SET[v] = SET_DEF[v]; } else SET[m] = true;
+    saveSet(); setDraw();
+    if (v === 'bgm') bgmSync(); else beep([660], 0.06);
+  };
+  // 滑条：按住拖，5 一档；拖的时候取消静音。背景音乐边拖边变，音效松手时「嘀」一声听响度。不显示数值（2026-11-22 用户要求，只要条）
+  const sl = $(id);
+  let drag = false;
+  const at = (e) => {
+    const r = sl.getBoundingClientRect(), k = sl.offsetWidth ? r.width / sl.offsetWidth : 1;
+    const nv = Math.max(0, Math.min(100, Math.round((e.clientX - r.left - 8 * k) / ((r.width - 16 * k) || 1) * 20) * 5));
+    if (nv === SET[v] && !SET[m]) return;
+    SET[v] = nv; SET[m] = false; setDraw();
+    if (v === 'bgm') bgmSync();
+  };
+  sl.addEventListener('pointerdown', (e) => { drag = true; try { sl.setPointerCapture(e.pointerId); } catch {} at(e); e.preventDefault(); });
+  sl.addEventListener('pointermove', (e) => { if (drag) at(e); });
+  const end = () => { if (!drag) return; drag = false; saveSet(); if (v === 'sfx') beep([660, 880], 0.06); };
+  sl.addEventListener('pointerup', end); sl.addEventListener('pointercancel', end);
+}
+putSegs(); setDraw();
+fineList.set('set', () => { putSegs(); setDraw(); });
 
 // ---------------------------------------------------------------- 意见便签
 // 开始/结束/暂停页（有角落 i 键的页）右下角贴着一张便签，和 i 同进同出（#noteTab，show() 管显示）；
@@ -4179,7 +4294,7 @@ function openTut(id, focus = null, back = null) {
   if (focus) setTimeout(() => { if (tutCur && tutCur.focus === focus) { btn.classList.remove('wait'); btn.classList.add('pop'); beep([784], 0.04, 'triangle', 0.04); } }, TUT_WAIT);
   if (focus && focus.under) {   // 盖在开始/结束/暂停页上：底下那页不藏（绶带在孔里接着动），角上的 i、便签、? 先收起来
     ov.classList.add('show'); $('ui').classList.add('tutOver');   // tutOver：底下那页角上的 i 也藏起来（它压在幕布上面）
-    for (const e of ['noteTab', 'tutTab', 'rankTab']) $(e).classList.remove('show');
+    for (const e of ['noteTab', 'tutTab', 'rankTab', 'bSet']) $(e).classList.remove('show');
   } else show('ovTut');
   // 回看：按钮行锚在最高卡片下面——卡片位置一点不动，只把按钮行按高度差往下挪；聚焦弹窗不挪（用户只要回看）。
   // 用 position:relative 的 top 挪，不用 transform：transform 会把按钮行提成独立图层，悬停重绘时像素字会被重新栅格化，
@@ -4376,6 +4491,7 @@ $('tutTab').title = TX.鼠标悬停提示.教程;
 const putTutIcon = () => PX.put($('tutTab'), PX.bitmap(Q, { o: '#4a2e20', w: '#fff6e0' }), 2, TX.鼠标悬停提示.教程);
 putTutIcon(); fineList.set('tutIcon', putTutIcon);
 $('tutTab').classList.toggle('show', [...document.querySelectorAll('.ov.show')].some(o => NOTE_PAGES.has(o.id)));
+$('bSet').classList.toggle('show', [...document.querySelectorAll('.ov.show')].some(o => SET_PAGES.test(o.id)));   // 刚打开网页：开始页已经显示着（没走 show()）
 // 图鉴：4 列格子，点一个见过的看全名和分值
 let dexBack = 'ovPause', dexSel = -1;
 var dexGold = false;   // 图鉴第二页：镀金版
@@ -4668,28 +4784,43 @@ $('bCfmYes').onclick = () => { keepBest(); toMenu(countMiss()); };   // 放弃�
 $('bDreamYes').onclick = () => { keepBest(); lastPile = snapPile(); start(true, lastPile); };
 $('bDreamNo').onclick = () => show('ovPause');
 $('bBack').onclick = () => show(creditBack);
-// 清空本地存档：隐藏的开发者功能（2026-11-13）。署名页连点标题 8 次（两次之间不超过 1.5 秒）弹确认框，界面上没有入口和提示。
-// 清掉游戏写过的全部 dfy_ 键（最高分、美梦、成就、图鉴、教程、音效开关、意见草稿、匿名号），然后重开：
+// 删除全部存档（2026-11-13 起；2026-11-22 入口从「署名页连点标题 8 次」挪到设置页的红字「删除存档」键）。
+// 确认框是红色调的，要连续点 WIPE_TAPS 次「删除」才生效：两次之间超过 WIPE_GAP 就从头数；一排格子和「再点 n 次」显示进度。
+// 清掉游戏写过的全部 dfy_ 键（最高分、美梦、成就、图鉴、教程、设置、意见草稿、匿名号），然后重开：
 // 网页刷新；微信版由平台层的 window.RESTART 重启小游戏（重启不了就弹窗请玩家自己重开）。
-const SAVE_KEYS = ['dfy_best', 'dfy_dream', 'dfy_dream_best', 'dfy_ach', 'dfy_seen', 'dfy_tut', 'dfy_sound', 'dfy_note_draft', 'dfy_cid'];
-let wipeTaps = 0, wipeLast = 0;
-$('tCredit').onclick = () => {
-  const now = performance.now();
-  wipeTaps = now - wipeLast > 1500 ? 1 : wipeTaps + 1; wipeLast = now;
-  if (wipeTaps >= 8) { wipeTaps = 0; show('ovWipe'); }
-};
-$('bWipeNo').onclick = () => show('ovCredit');
+const SAVE_KEYS = ['dfy_best', 'dfy_dream', 'dfy_dream_best', 'dfy_ach', 'dfy_seen', 'dfy_tut', 'dfy_sound', 'dfy_set', 'dfy_note_draft', 'dfy_cid'];
+const WIPE_TAPS = 8, WIPE_GAP = 1500;
+let wipeTaps = 0, wipeTimer = 0;
+const wipePips = Array.from({ length: WIPE_TAPS }, () => { const i = document.createElement('i'); i.className = 'flat'; $('wipePips').appendChild(i); return i; });
+function wipeDraw() {
+  wipePips.forEach((p, i) => p.classList.toggle('on', i < wipeTaps));
+  setPix('wipe4', wipeTaps ? fmt(TX.清空存档.还差, { n: WIPE_TAPS - wipeTaps }) : fmt(TX.清空存档.连点提示, { n: WIPE_TAPS }),
+    { ...BODY, fill: wipeTaps ? '#c8402f' : '#8a6a52', bold: !!wipeTaps }, 1);
+}
+const wipeReset = () => { clearTimeout(wipeTimer); wipeTaps = 0; wipeDraw(); };
+$('bSetWipe').onclick = () => { wipeReset(); show('ovWipe'); beep([392], 0.06); };
+$('bWipeNo').onclick = () => { wipeReset(); show('ovSet'); setDraw(); };
 $('bWipeYes').onclick = () => {
+  clearTimeout(wipeTimer);
+  wipeTaps++;
+  const b = $('bWipeYes'); b.classList.remove('hit'); void b.offsetWidth; b.classList.add('hit');
+  if (wipeTaps < WIPE_TAPS) {
+    wipeDraw(); beep([220 + wipeTaps * 40], 0.05, 'square', 0.05);
+    wipeTimer = setTimeout(wipeReset, WIPE_GAP);   // 停顿太久：从头数
+    return;
+  }
+  wipeDraw();
   for (const k of SAVE_KEYS) localStorage.removeItem(k);
   if (typeof localStorage.key === 'function') for (let i = localStorage.length - 1; i >= 0; i--) { const k = localStorage.key(i); if (k && k.startsWith('dfy_')) localStorage.removeItem(k); }
   if (window.RESTART) window.RESTART(TX.清空存档.微信重开); else location.reload();
 };
+wipeDraw();
 document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
 
 // 开始页的背景音乐（见「背景音乐」一节）：先试着直接起；浏览器不让自动播放时，AudioContext 挂在那儿，下面这个在任意一次点 / 按时唤醒它。
 // 一直挂着不摘：音频环境之后再被系统挂起 / 打断（iOS 来电等）时，下一次点按也能拉回来；平时每次点按只多读一个 state。
 bgmSync();
-const bgmWake = () => { if (soundOn && audio && audio.state !== 'running') bgmSync(); };
+const bgmWake = () => { if ((bgmOn() || sfxOn()) && audio && audio.state !== 'running') bgmSync(); };
 for (const ev of ['pointerdown', 'touchend', 'mousedown', 'click', 'keydown']) document.addEventListener(ev, bgmWake, true);
 
 requestAnimationFrame(loop);

@@ -2,7 +2,7 @@
 // GitHub Pages 版不带它们，window.TOY 不存在，游戏里跟 Toy 有关的东西（排行榜入口等）都不出现。
 //
 // 做三件事：
-// 1. 云存档：游戏照旧只读写 localStorage；这里把几项存档（最高分、成就、图鉴、美梦进度、教程、声音开关）镜像到 Toy 云存储。
+// 1. 云存档：游戏照旧只读写 localStorage；这里把几项存档（最高分、成就、图鉴、美梦进度、教程、设置）镜像到 Toy 云存储。
 //    开局前先读一次云端、和本地合并后写回本地（index.html 等 window.TOY_BOOT 再加载 game.js）；之后本地一改就记下，
 //    攒几秒批量写一次、切后台 / 关页面时立刻写。写的时候总是「本地 ∪ 云端」合并后的值，换设备、云端读得慢都不会把进度冲掉。
 // 2. 排行榜：board 1 = 普通模式最高分，board 2 = 美梦模式最高分。第一次提交要平台弹用户数据确认，所以第一次只在
@@ -15,7 +15,7 @@
   const sdk = window.toy;
   if (!sdk) return;
 
-  const SYNC = ['dfy_best', 'dfy_dream', 'dfy_dream_best', 'dfy_ach', 'dfy_seen', 'dfy_tut', 'dfy_sound'];
+  const SYNC = ['dfy_best', 'dfy_dream', 'dfy_dream_best', 'dfy_ach', 'dfy_seen', 'dfy_tut', 'dfy_sound', 'dfy_set'];
   const SYNC_SET = new Set(SYNC);
   const BOOT_WAIT = 2500;     // 开局前最多等云端这么久，等不到就先用本地的（读到以后的写入照样合并，不丢）
   const SAVE_DELAY = 4000;    // 本地改动后攒这么久再写云端
@@ -47,7 +47,8 @@
       const x = parse(a, {}), y = parse(b, {});
       return JSON.stringify({ miss: Math.max(+x.miss || 0, +y.miss || 0), unlocked: !!(x.unlocked || y.unlocked), entered: !!(x.entered || y.entered) });
     },
-    dfy_sound: (a, b) => (a != null ? a : b),   // 声音开关：这台设备自己的选择优先
+    dfy_sound: (a, b) => (a != null ? a : b),   // 旧的声音开关（2026-11-21 前）：这台设备自己的选择优先
+    dfy_set: (a, b) => (a != null ? a : b),     // 设置页（音量、静音、粒子档位）：同上
   };
   const merge = (k, a, b) => (a == null ? b : b == null ? a : MERGE[k](a, b));
 

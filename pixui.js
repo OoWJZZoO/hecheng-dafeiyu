@@ -30,7 +30,7 @@ let ATLAS = null, GRAY = null, AW = 0;     // 字模元数据、灰度（0–255
 // 字模灰度优先直接解 PNG 字节，不经过 canvas。2026-11-21 B站 Toy 版有玩家反馈界面字全没了（图标、精灵都在）：
 // 原来是把字模图画到 canvas 再 getImageData 读回，部分设备 / WebView（隐私防指纹之类）读回的是全空数据，
 // 字模灰度全 0，每个字都被二值化抹掉，也不报错。自己解 PNG 就不依赖读回；没有 DecompressionStream 的老浏览器才退回 canvas。
-const FONT_PNG = 'sprites/font.png?v=0f477813';
+const FONT_PNG = 'sprites/font.png?v=0268aa1a';
 // 只解 tools/make_font.py 产出的格式：8 位灰度、不隔行（其他格式抛错，退回 canvas）
 async function decodeGrayPng(buf) {
   const b = new Uint8Array(buf), dv = new DataView(buf);
@@ -76,7 +76,7 @@ const viaBytes = () => (typeof DecompressionStream === 'function' && typeof Blob
   ? fetch(FONT_PNG).then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); }).then(decodeGrayPng)
   : Promise.reject(new Error('没有 DecompressionStream')));
 const ready = Promise.all([
-  fetch('sprites/font.json?v=f16308e3').then(r => r.json()),
+  fetch('sprites/font.json?v=1913f6ca').then(r => r.json()),
   viaBytes().catch((e) => { console.warn('[PixUI] 字模图没法直接解，改用 canvas 读回', e); return viaCanvas(); }),
 ]).then(([meta, at]) => {
   // 读到的灰度全空 = 读回被设备改掉了：宁可退回系统字体（至少看得见），也不要静默显示一屏空白
@@ -364,6 +364,19 @@ const ICONS = {
     '#sg#ood####',
     '#sg#ood#ce#',
     '###########',
+  ],
+  gear: [   // 设置（2026-11-21，占原来音量键的位置）：银灰齿轮，中间一个孔
+    '....###....',
+    '.##.#s#.##.',
+    '.#s##s##s#.',
+    '..#sssss#..',
+    '###ss#sg###',
+    '#sss#.#ggg#',
+    '###sg#gg###',
+    '..#sgggg#..',
+    '.#g##g##g#.',
+    '.##.#g#.##.',
+    '....###....',
   ],
   sound: [
     '...#.....',

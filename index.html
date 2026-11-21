@@ -228,6 +228,57 @@
   #ui.tutOver .icon.corner{visibility:hidden}   /* 教程盖在开始/结束/暂停页上时 */
   #bTutOk.wait{visibility:hidden}
   #bTutOk.pop{animation:pop .24s steps(3)}
+  /* 设置键（2026-11-21，占原来音量键的位置：右上角）：局内和开始/结束/暂停页才有（show() 管显示）。
+     直接挂在 #ui 下、排在各页后面，盖在遮罩上面也点得到 */
+  #bSet{display:none;position:absolute;top:10px;right:12px;width:26px;height:26px;align-items:center;justify-content:center;
+    background:#fff6e0;--hi:#fffdf4;--lo:#e2cfa8;cursor:pointer;pointer-events:auto}
+  #bSet.show{display:flex}
+  #bSet:active{top:14px;box-shadow:0 -2px 0 0 var(--o),0 2px 0 0 var(--o),-2px 0 0 0 var(--o),2px 0 0 0 var(--o)}
+  #bSet:active::after{content:"";position:absolute;left:0;right:0;top:-4px;height:4px}
+  #ui.tutOver #bSet{visibility:hidden}
+  /* 设置页：一行一项「标签 | 控件」，标签一列左对齐；声音一组（静音键 + 滑条，不显示数值）、画面一组（分段框），虚线隔开；最下面「恢复默认」（二次确认）。
+     这页的控件一律是扁平的 .flat：只有缺角的像素描边，不带大按钮那条厚投影（2026-11-22 用户：投影堆在一起太笨重）。按下时只换底色 */
+  .flat{--o:#4a2e20;box-shadow:0 -2px 0 0 var(--o),0 2px 0 0 var(--o),-2px 0 0 0 var(--o),2px 0 0 0 var(--o)}
+  .card.set{width:256px;padding:10px 14px 14px}
+  .card.set .h2{margin-bottom:6px}
+  .card.set .sep{margin:8px 0 6px}
+  .setRow{display:flex;align-items:center;gap:10px;height:36px}
+  .setLbl{width:64px;flex:none;display:flex;justify-content:flex-start;padding-left:2px}
+  .setMute{width:28px;height:22px;flex:none;display:flex;align-items:center;justify-content:center;cursor:pointer;background:#fffdf4}
+  .setMute:hover{background:#fff1c8}
+  .setMute:active{background:#e9dcc4}
+  .sld{position:relative;flex:1;height:30px;cursor:pointer;touch-action:none}
+  .sld .trk{position:absolute;left:8px;right:8px;top:12px;height:6px;background:#e9dcc4;overflow:hidden}
+  .sld .fil{position:absolute;left:0;top:0;bottom:0;background:#ffd25e}
+  .sld .kn{position:absolute;top:7px;width:12px;height:16px;background:#fffdf4}
+  .sld:hover .kn{background:#fff1c8}
+  .sld.off .fil{background:#cdbb98}
+  .sld.off .kn{background:#e9dcc4}
+  /* 分段框：一整条描边，格子之间 2px 竖线，选中的格子填黄 */
+  .seg{flex:1;display:flex;height:22px;margin:0 2px;background:#fffdf4}
+  .seg > span{flex:1;display:flex;align-items:center;justify-content:center;cursor:pointer}
+  .seg > span + span{box-shadow:-2px 0 0 0 #4a2e20;margin-left:2px}
+  .seg > span:hover{background:#fff1c8}
+  .seg > span.on,.seg > span.on:hover{background:#ffd25e}
+  .setFoot{display:flex;justify-content:center;gap:14px;margin-top:4px}
+  .setBtn{display:flex;align-items:center;justify-content:center;cursor:pointer;height:22px;padding:0 12px;background:#fffdf4}
+  .setBtn:hover{background:#fff1c8}
+  .setBtn:active{background:#e9dcc4}
+  html.nogap .setRow > * + *{margin-left:10px}
+  html.nogap .setFoot > * + *{margin-left:14px}
+  html.nogap .wipePips > * + *{margin-left:10px}
+  /* 删存档确认框：整张卡片换成红色调（边框、底色、横格），「删除」键红底奶白字；每点一下键抖一下、记数格亮一格 */
+  .card.wipe{--o:#7a2418;--hi:#fff8f4;--lo:#eec4b4;background-color:#fff1ea;background-image:linear-gradient(#f8dcd0 2px,transparent 2px)}
+  .wipePips{display:flex;gap:10px;justify-content:center;margin:12px 0 6px}
+  .wipePips i{width:10px;height:10px;background:#fffdf4;--o:#7a2418}
+  .wipePips i.on{background:#c8402f}
+  #bWipeYes{background:#d24a36;--o:#5a1a10;--hi:#ee7d68;--lo:#a8362a}
+  #bWipeYes:hover{background:#dc5a44}
+  /* 每点一下：底色闪亮一下。不要做成左右抖 —— 不管用 transform 还是 left，#ui 是非整数倍缩放，挪 2 个逻辑像素
+     等于挪了带小数的物理像素，像素字图片换一个采样相位，字形就跟着抖（2026-11-22 用户发现；同 11-11「返回键字形抖动」）。
+     只换颜色不挪位置，按下的表现就和其他按钮一样 */
+  #bWipeYes.hit{animation:wipeHit .2s steps(2)}
+  @keyframes wipeHit{0%{background:#ff7a5e}100%{background:#d24a36}}
   /* 写意见的页：卡片本身是一张大便签（黄底），输入框是横格纸；放在屏幕上半截，手机弹键盘也不挡 */
   #ovNote{justify-content:flex-start;padding-top:64px;box-sizing:border-box}
   .card.note{width:268px;background:#ffeea0;--hi:#fff8cc;--lo:#e8c766;background-image:none;overflow:visible;position:relative}
@@ -356,7 +407,6 @@
   <canvas id="cv"></canvas>
   <div id="ui">
   <div id="hud">
-    <div class="icon px" id="bSound" style="right:12px"></div>
     <div class="icon px" id="bPause" style="right:48px;display:none"></div>
     <!-- 美梦模式：摇一摇（顶栏正中，图标 + 剩余次数；下面一条是离下一次的分数进度） -->
     <div class="chip px" id="bShake" style="display:none"><span class="ic"></span><span class="n"></span><div id="shakeBar" style="display:none"><i></i></div></div>
@@ -426,12 +476,14 @@
     <div class="btns"><span class="btn px" id="bCfmYes"></span><span class="btn px alt" id="bCfmNo"></span></div>
   </div>
 
-  <!-- 清空本地存档（隐藏的开发者功能：署名页连点标题 8 次） -->
+  <!-- 删除全部存档（入口：设置页红字「删除存档」）。红色调卡片，连续点 8 次「删除」才生效，下面一排 8 格记数 -->
   <div class="ov" id="ovWipe">
-    <div class="card px dreamcfm">
+    <div class="card px dreamcfm wipe">
       <div class="ptxt" id="wipe1"></div>
       <div class="ptxt" id="wipe2"></div>
       <div class="ptxt" id="wipe3"></div>
+      <div class="wipePips" id="wipePips"></div>
+      <div class="ptxt" id="wipe4"></div>
     </div>
     <div class="btns"><span class="btn px" id="bWipeYes"></span><span class="btn px alt" id="bWipeNo"></span></div>
   </div>
@@ -511,17 +563,40 @@
     <div class="btns"><span class="btn px sub sq tutPg" id="bTutPrev"></span><span class="btn px" id="bTutOk"></span><span class="btn px sub sq tutPg" id="bTutNext"></span></div>
   </div>
 
+  <!-- 设置页（2026-11-21）：背景音乐 / 音效音量和静音、粒子特效档位。入口是右上角的齿轮键 #bSet -->
+  <div class="ov" id="ovSet">
+    <div class="card px set">
+      <div class="h2" id="tSet"></div>
+      <div class="setRow"><span class="setLbl" id="sBgmL"></span><span class="setMute flat" id="sBgmM"></span><div class="sld" id="sBgm"><div class="trk flat"><div class="fil"></div></div><div class="kn flat"></div></div></div>
+      <div class="setRow"><span class="setLbl" id="sSfxL"></span><span class="setMute flat" id="sSfxM"></span><div class="sld" id="sSfx"><div class="trk flat"><div class="fil"></div></div><div class="kn flat"></div></div></div>
+      <div class="sep"></div>
+      <div class="setRow"><span class="setLbl" id="sFxL"></span><div class="seg flat" id="sFx"></div></div>
+      <div class="setRow"><span class="setLbl" id="sShkL"></span><div class="seg flat" id="sShk"></div></div>
+      <div class="sep"></div>
+      <div class="setFoot"><span class="setBtn flat" id="bSetReset"></span><span class="setBtn flat" id="bSetWipe"></span></div>
+    </div>
+    <div class="btns"><span class="btn px" id="bSetBack"></span></div>
+  </div>
+  <div class="ov" id="ovSetReset">
+    <div class="card px dreamcfm">
+      <div class="ptxt" id="rst1"></div>
+      <div class="ptxt" id="rst2"></div>
+    </div>
+    <div class="btns"><span class="btn px" id="bRstYes"></span><span class="btn px alt" id="bRstNo"></span></div>
+  </div>
+
   <div class="icon px corner" id="noteTab"></div>
   <div class="icon px corner" id="tutTab"></div>
   <div class="icon px corner" id="rankTab"></div>
+  <div class="icon px" id="bSet"></div>
   </div>
 </div>
 <script src="vendor/matter.min.js" onload="Boot.set(.1)"></script>
-<script src="text.js?v=a899d9b8" onload="Boot.set(.12)"></script>
+<script src="text.js?v=774d0970" onload="Boot.set(.12)"></script>
 <script src="sprites/shapes.js?v=8f3b00b8" onload="Boot.set(.15)"></script>
 <script src="sprites/ach.js?v=8f68d6e5" onload="Boot.set(.17)"></script>
 <script src="bgm.js?v=daeced6c" onload="Boot.set(.18)"></script>
-<script src="pixui.js?v=f07f4f92" onload="Boot.set(.2)"></script>
-<script>Promise.all([PixUI.ready, window.TOY_BOOT]).then(() => {   /* TOY_BOOT：Toy 版先读完云存档（toy.js），网页版没有 */ Boot.set(.4); const s = document.createElement('script'); s.src = 'game.js?v=0aa19289'; s.onload = () => Boot.set(.5); document.body.appendChild(s); });</script>
+<script src="pixui.js?v=25e44d9d" onload="Boot.set(.2)"></script>
+<script>Promise.all([PixUI.ready, window.TOY_BOOT]).then(() => {   /* TOY_BOOT：Toy 版先读完云存档（toy.js），网页版没有 */ Boot.set(.4); const s = document.createElement('script'); s.src = 'game.js?v=171bb325'; s.onload = () => Boot.set(.5); document.body.appendChild(s); });</script>
 </body>
 </html>
