@@ -76,7 +76,20 @@ const READ_OK = (() => {
     return d[0] > 200 && d[3] > 200;
   } catch (e) { return false; }
 })();
-if (!READ_OK) { console.warn('[PixUI] 这台设备 canvas 读回不可靠'); document.documentElement.classList.add('noread'); }
+// canvas 能不能导出成图片（toDataURL）。2026-11-21 又有玩家整页没字、没图标、阶梯只剩空框：那台设备拦的是导出，
+// toDataURL 给的是坏图（"data:," 之类），put 贴出去的 <img> 全是坏图。导不出就让 put 直接把 canvas 放进页面（不导出）。
+const URL_OK = (() => {
+  try {
+    const c = document.createElement('canvas'); c.width = c.height = 2;
+    const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, 2, 2);
+    return /^data:image\/png;base64,[A-Za-z0-9+/=]{40,}$/.test(c.toDataURL());
+  } catch (e) { return false; }
+})();
+// 剪影（game.js lockImg）读回、导出两样都要；任一不行就整页加 noread（没解锁的格子改用原图 + CSS 压暗）
+const CANVAS_OK = READ_OK && URL_OK;
+if (!READ_OK) console.warn('[PixUI] 这台设备 canvas 读回不可靠');
+if (!URL_OK) console.warn('[PixUI] 这台设备 canvas 导不出图片，像素字直接用 canvas 显示');
+if (!CANVAS_OK) document.documentElement.classList.add('noread');
 const styleOf = (px, bold) => {
   const k = `${+px.toFixed(3)}_${bold ? 700 : 400}`;
   return ATLAS && ATLAS[k] ? ATLAS[k] : null;
@@ -367,7 +380,6 @@ function icon(name) { return bitmap(ICONS[name], ICON_PAL); }
 // 屏幕放大倍数不是整数时，先最近邻放大 PixUI.zoom = k 倍（不超过实际倍数的整数），余下不到 2 倍交给浏览器最近邻，和画布同一套做法；
 // 实际倍数不到 1 时 html.smooth 让浏览器平滑缩小（见 game.js 的 resize）
 function put(el, canvas, u, alt = '') {
-  const im = new Image();
   // 一个美术像素占的物理像素够多（>= 2.5）时直接最近邻放大：边缘锐利，偶尔某列宽一个物理像素也看不出来；
   // 细网格小字（一格才 1~2 个物理像素）先最近邻放大 k 倍，余下交给浏览器最近邻（个别行/列宽一个物理像素，但不糊）
   const crisp = u * (window.PixUI.dev || 1) >= 2.5;
@@ -377,9 +389,13 @@ function put(el, canvas, u, alt = '') {
     src = document.createElement('canvas'); src.width = canvas.width * k; src.height = canvas.height * k;
     const g = src.getContext('2d'); g.imageSmoothingEnabled = false; g.drawImage(canvas, 0, 0, src.width, src.height);
   }
-  im.src = src.toDataURL();
-  im.alt = alt;
-  im.draggable = false;
+  let im;
+  if (URL_OK) { im = new Image(); im.src = src.toDataURL(); im.alt = alt; im.draggable = false; }
+  else {   // 导不出图片的设备（见 URL_OK）：拷一张新 canvas 直接放进页面（不能直接放 src：调用方可能把同一张画布贴到好几处）
+    im = document.createElement('canvas'); im.width = src.width; im.height = src.height;
+    const g = im.getContext('2d'); g.imageSmoothingEnabled = false; g.drawImage(src, 0, 0);
+    im.setAttribute('role', 'img');
+  }
   im.className = crisp ? 'pix crisp' : 'pix';
   im.style.width = canvas.width * u + 'px';
   im.style.height = canvas.height * u + 'px';
@@ -457,5 +473,5 @@ function para(runs, { px = 12, maxW = 240, lh = 1.6, thr = 70, align = 'left' } 
   return { canvas: c, links };
 }
 
-window.PixUI = { text, icon, put, bitmap, para, INK, ready, missed, zoom: 1, ICONS, ICON_PAL, readOk: READ_OK };
+window.PixUI = { text, icon, put, bitmap, para, INK, ready, missed, zoom: 1, ICONS, ICON_PAL, canvasOk: CANVAS_OK };
 })();

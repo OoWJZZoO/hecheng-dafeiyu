@@ -12,9 +12,9 @@
   /* 构图外面的背景（game.js syncBackdrop）：铺满整个窗口，垫在 #wrap 下面 */
   #backdrop{position:fixed;left:0;top:0;width:100%;height:100%}
   canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges}
-  img.pix{display:block;image-rendering:pixelated;image-rendering:crisp-edges;pointer-events:none}
-  .smooth canvas,.smooth img.pix{image-rendering:auto}
-  .smooth img.pix.crisp{image-rendering:pixelated;image-rendering:crisp-edges}
+  img.pix,canvas.pix{display:block;image-rendering:pixelated;image-rendering:crisp-edges;pointer-events:none}
+  .smooth canvas,.smooth img.pix{image-rendering:auto}   /* canvas.pix 已含在 .smooth canvas 里 */
+  .smooth img.pix.crisp,.smooth canvas.pix.crisp{image-rendering:pixelated;image-rendering:crisp-edges}
   /* 所有界面在 360×704（2026-11-13 加高，原 360×640）的逻辑坐标里排，整体按画布同样的倍数缩放；一个美术像素 = 2 逻辑像素 */
   #ui{position:absolute;left:0;top:0;width:360px;height:704px;transform-origin:0 0;pointer-events:none}
   .ov.show{pointer-events:auto}
@@ -33,7 +33,7 @@
   .title{margin:0 0 4px;animation:bob 1.2s steps(2) infinite}
   @keyframes bob{50%{transform:translateY(-2px)}}
   .sub-title{margin:0 0 6px}
-  .title img,.sub-title img,.h2 img,.btn img{margin:0 auto}
+  .title img,.sub-title img,.h2 img,.btn img,.title .pix,.sub-title .pix,.h2 .pix,.btn .pix{margin:0 auto}
   .h2{margin:2px 0 8px;display:flex;justify-content:center}
   p{margin:6px 0;font-size:13px;line-height:1.55}
   .btns{display:flex;gap:14px;justify-content:center;align-items:flex-start;margin-top:4px;position:relative}   /* position:relative 给教程回看的按钮行锚定用（top 位移，不影响卡片布局） */
@@ -52,14 +52,14 @@
   .ptxt{display:flex;justify-content:center;margin:3px 0}
   #tGoal{margin-top:6px}
   #ladder > div{display:flex;flex-direction:column;align-items:center;width:40px}
-  /* canvas 读回不可靠的设备（pixui.js READ_OK）：没解锁的格子贴原图，压成暗色当剪影（正常设备用 game.js lockImg 画的剪影） */
+  /* canvas 读回或导出不可靠的设备（pixui.js CANVAS_OK）：没解锁的格子贴原图，压成暗色当剪影（正常设备用 game.js lockImg 画的剪影） */
   html.noread img.lk{filter:brightness(0);opacity:.45}
   #ladder > div > img:first-child{width:32px;height:32px;object-fit:contain;image-rendering:pixelated;display:block;margin:0 auto 3px}
   #ladder .lbl{display:flex;justify-content:center}
   /* 结束页 */
   .card.over{width:212px;padding:12px 14px 12px}
   .scoreRow{display:flex;justify-content:center;align-items:flex-end;gap:4px;margin:6px 0 4px}
-  .scoreRow img{margin:0}
+  .scoreRow img,.scoreRow .pix{margin:0}
   #overUnit{padding-bottom:3px}
   #overBest.rec{animation:bob .6s steps(2) infinite}
   .sep{height:2px;margin:10px 6px 8px;background:repeating-linear-gradient(90deg,#cdbb98 0 4px,transparent 4px 8px)}
@@ -121,15 +121,15 @@
   #hud .chip .ic,#hud .chip .n{display:flex}
   #hud .chip .ic{width:26px;height:26px;align-items:center;justify-content:center;background:#fff6e0;--o:#4a2e20;--hi:#fffdf4;--lo:#e2cfa8;
     box-shadow:0 -2px 0 0 var(--o),0 2px 0 0 var(--o),-2px 0 0 0 var(--o),2px 0 0 0 var(--o),0 6px 0 0 var(--o),inset 0 -2px 0 0 var(--lo),inset 0 2px 0 0 var(--hi)}
-  #hud .chip.ready .ic img{animation:chipBob 1.6s steps(1) infinite}
+  #hud .chip.ready .ic img,#hud .chip.ready .ic .pix{animation:chipBob 1.6s steps(1) infinite}
   @keyframes chipBob{0%,70%{transform:none}75%{transform:translateX(-2px)}80%{transform:translateX(2px)}85%{transform:translateX(-2px)}90%{transform:none}}
   #hud .chip.empty{cursor:default}
-  #hud .chip.empty .ic img,#hud .chip.empty .n{opacity:.55}   /* 没豆：只淡图标和九宫格，键底和进度条不淡（进度条这时最要紧） */
+  #hud .chip.empty .ic img,#hud .chip.empty .ic .pix,#hud .chip.empty .n{opacity:.55}   /* 没豆：只淡图标和九宫格，键底和进度条不淡（进度条这时最要紧） */
   #hud .chip.on .ic{background:#ffeaa0;--hi:#fff6d0;--lo:#e8c070}
-  #hud .chip.on .ic img{animation:chipJit .16s steps(2) infinite}
+  #hud .chip.on .ic img,#hud .chip.on .ic .pix{animation:chipJit .16s steps(2) infinite}
   @keyframes chipJit{50%{transform:translateX(2px)}}
   #hud .chip.water.on .ic{background:#cfe6df;--hi:#eef7f3;--lo:#8fc4b4}   /* 灌水进行中：键底淡海绿（同背景海面色系；摇一摇是暖金） */
-  #hud .chip.water.on .ic img{animation:chipWave .5s steps(2) infinite}
+  #hud .chip.water.on .ic img,#hud .chip.water.on .ic .pix{animation:chipWave .5s steps(2) infinite}
   @keyframes chipWave{50%{transform:translateY(-2px)}}
   #hud .chip.got{animation:chipGot .36s steps(3)}
   @keyframes chipGot{0%{transform:translateY(-4px)}50%{transform:translateY(2px)}100%{transform:none}}
@@ -189,7 +189,7 @@
   #noteTab{display:none;right:auto;left:16px;bottom:22px;pointer-events:auto}   /* 2026-11-11 挪到左下角，和右下角 i 对齐（右边太挤）；它直接挂在 #ui 下（#ui 整层不接点击），要自己打开，不然点了穿透（2026-11-10 修）*/
   #noteTab.show{display:flex}
   #noteTab:active{bottom:18px}
-  #noteTab img{animation:noteWig 4s steps(1) infinite}
+  #noteTab img,#noteTab .pix{animation:noteWig 4s steps(1) infinite}
   @keyframes noteWig{0%,84%{transform:none}86%{transform:translate(-2px,-2px)}89%{transform:translate(0,-2px)}92%{transform:translate(-2px,0)}95%{transform:none}}
   /* 教程「?」键：和角落 i 键、意见便签同进同出（开始/结束/暂停页），叠在便签正上方 */
   #tutTab{display:none;bottom:62px;pointer-events:auto}
@@ -500,7 +500,7 @@
 <script src="text.js?v=a899d9b8" onload="Boot.set(.12)"></script>
 <script src="sprites/shapes.js?v=8f3b00b8" onload="Boot.set(.15)"></script>
 <script src="sprites/ach.js?v=8f68d6e5" onload="Boot.set(.17)"></script>
-<script src="pixui.js?v=f3dc0289" onload="Boot.set(.2)"></script>
-<script>Promise.all([PixUI.ready, window.TOY_BOOT]).then(() => {   /* TOY_BOOT：Toy 版先读完云存档（toy.js），网页版没有 */ Boot.set(.4); const s = document.createElement('script'); s.src = 'game.js?v=f92b147b'; s.onload = () => Boot.set(.5); document.body.appendChild(s); });</script>
+<script src="pixui.js?v=74297e5f" onload="Boot.set(.2)"></script>
+<script>Promise.all([PixUI.ready, window.TOY_BOOT]).then(() => {   /* TOY_BOOT：Toy 版先读完云存档（toy.js），网页版没有 */ Boot.set(.4); const s = document.createElement('script'); s.src = 'game.js?v=6d3bf15c'; s.onload = () => Boot.set(.5); document.body.appendChild(s); });</script>
 </body>
 </html>

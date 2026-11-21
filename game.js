@@ -477,9 +477,9 @@ const LBL = { px: 10, bold: false, fill: '#6b4a36', outline: null, shadow: false
 // 开始页进化表和图鉴格子共用：按是否见过填图和名字
 function fillCell(d, k, gold = false) {
   const sk = seenKey(k, gold), on = seen.has(sk), im = d.querySelector(':scope > img');   // 不能用 querySelector('img')：选中时垫底小牌子里也有一张 img
-  // canvas 读回不可靠的设备（pixui.js READ_OK）：剪影做不出来，直接贴原图、用 CSS 压成暗色（html.noread img.lk）
-  im.classList.toggle('lk', !on && !PX.readOk);
-  if (on || !PX.readOk) im.src = spriteSrc(k, gold); else lockImg(k, (u) => { if (!seen.has(sk)) im.src = u; }, gold);
+  // canvas 读回或导出不可靠的设备（pixui.js CANVAS_OK）：剪影做不出来，直接贴原图、用 CSS 压成暗色（html.noread img.lk）
+  im.classList.toggle('lk', !on && !PX.canvasOk);
+  if (on || !PX.canvasOk) im.src = spriteSrc(k, gold); else lockImg(k, (u) => { if (!seen.has(sk)) im.src = u; }, gold);
   im.style.transform = !on && LOCK_NUDGE[k] ? `translate(${LOCK_NUDGE[k]})` : '';
   let q = d.querySelector('.q');
   if (!q) { q = document.createElement('span'); q.className = 'q'; d.appendChild(q); }
@@ -4092,7 +4092,7 @@ function tutAlignRows() {
   // 先把每行的位置都量完、再统一写 transform：边量边写会让浏览器每行都重新排版一次（2026-11-14 照微信版性能意见第 2 条改）
   const rows = [...$('tutRows').querySelectorAll('.tutRow')], textW = TUT_CARD_W - TUT_FW * TUT_U - TUT_ROW_GAP;
   const shifts = rows.map((row, i) => {
-    const f = row.querySelector('canvas'), tx = row.querySelector('.tutTxt'), im = tx && tx.querySelector('img');
+    const f = row.querySelector(':scope > canvas'), tx = row.querySelector('.tutTxt'), im = tx && tx.querySelector('.pix');   // .pix：像素字可能是 img，也可能是 canvas（pixui.js put）
     if (!f || !tx || !im) return null;
     const base = row.offsetLeft;   // 换算到行内坐标：行宽就是卡片内容宽 232
     const fl = f.offsetLeft - base, fr = fl + f.offsetWidth, tl = tx.offsetLeft - base + im.offsetLeft;
