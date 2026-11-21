@@ -8,7 +8,7 @@
 1. 检查 text.json：游戏代码用到的每一条都在；成就 id 都对得上；{n} {a} {b} {date} {page} {total} {mode} 以外的占位符报错；空文案报错。
 2. 生成 text.js（window.TEXT = {...}），index.html 里在 game.js 之前加载。
 3. 重跑 make_font.py：新文案里出现的新字补进字模图（没新字时输出和原来一模一样）。
-4. 更新缓存版本号：text.js / game.js / pixui.js / shapes.js 以及字模图，把引用处的 ?v=xxx 换成文件内容的哈希，
+4. 更新缓存版本号：text.js / game.js / pixui.js / shapes.js / bgm.js 以及字模图，把引用处的 ?v=xxx 换成文件内容的哈希，
    文件没变版本号就不变，改了浏览器一定拉新的。
 不检查文案「放得下放不下」，字变长了自己在游戏里看一眼。
 """
@@ -132,7 +132,7 @@ def main():
     set_version('pixui.js', r'(sprites/font\.png)', digest('sprites/font.png'))
     set_version('game.js', r'(sprites/ach\.png)', digest('sprites/ach.png'))   # 成就头像图集（tools/make_ach_icons.py 生成）；先改 game.js 再算 game.js 的哈希
     for f, pat in (('text.js', r'(text\.js)'), ('game.js', r'(game\.js)'), ('pixui.js', r'(pixui\.js)'), ('sprites/shapes.js', r'(sprites/shapes\.js)'),
-                   ('sprites/ach.js', r'(sprites/ach\.js)')):
+                   ('sprites/ach.js', r'(sprites/ach\.js)'), ('bgm.js', r'(bgm\.js)')):
         if set_version('index.html', pat, digest(f)):
             print('index.html 里', f, '的版本号换新了')
     print('构建完成')

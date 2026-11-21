@@ -24,7 +24,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SDK = '//s1.hdslb.com/bfs/seed/toy/app/sdk/toy-sdk.js'
-FILES = ['index.html', 'game.js', 'pixui.js', 'text.js', 'toy.js', 'vendor', 'sprites']
+FILES = ['index.html', 'game.js', 'pixui.js', 'text.js', 'bgm.js', 'toy.js', 'vendor', 'sprites']
 ENTRY_MAX = 1024 * 1024
 BILI = re.compile(r'^https?://([\w-]+\.)*bilibili\.com/')
 
@@ -110,7 +110,7 @@ def main():
             errs.append(f'{name} 里还有 textarea')
         if 'fetch(' in s:
             errs.append(f'{name} 里还有 fetch(')
-    for name in ('index.html', 'game.js', 'pixui.js', 'text.js', 'toy.js'):
+    for name in ('index.html', 'game.js', 'pixui.js', 'text.js', 'bgm.js', 'toy.js'):
         for url in re.findall(r'https?://[^\s"\'<>)\]]+', (out / name).read_text(encoding='utf-8')):
             if not BILI.match(url) and 'hdslb.com' not in url:
                 errs.append(f'{name} 里有站外链接：{url}')

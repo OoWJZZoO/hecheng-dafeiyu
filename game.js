@@ -641,8 +641,25 @@ const sfxJolt = (m) => {
 const bSound = document.getElementById('bSound');
 const syncSound = () => PX.put(bSound, PX.icon(soundOn ? 'sound' : 'mute'), 2, soundOn ? TX.鼠标悬停提示.声音开 : TX.鼠标悬停提示.声音关);
 fineList.set('sound', () => syncSound());
-bSound.onclick = () => { soundOn = !soundOn; localStorage.setItem('dfy_sound', soundOn ? '1' : '0'); syncSound(); beep([660]); };
+bSound.onclick = () => { soundOn = !soundOn; localStorage.setItem('dfy_sound', soundOn ? '1' : '0'); syncSound(); beep([660]); bgmSync(); };
 syncSound();
+
+// ---------------------------------------------------------------- 背景音乐（bgm.js：现场合成的 8-bit 3/4 拍圆舞曲，普通 / 美梦各一首，采样级无缝循环）
+// 和音效共用同一个 AudioContext（attach）。开始页就放普通那首；之后跟着模式走（普通 ↔ 美梦，bgm.js 里做淡出 → 淡入）。
+// 浏览器要用户点过才许出声：页面一加载先试着直接起（允许自动播放就当场响），不允许的话 AudioContext 是挂起的，
+// 第一次点 / 按任何地方时唤醒（文件最末 bgmWake）。
+// 静音：连调度一起停（不白白合成听不见的音符），再开声音从头起；局内以外的页面（暂停、结束、图鉴……）压低音量（show 里的 setDuck；开始页和它的子页不压）。
+// bgm.js 没载到也不影响游戏（window.BGM 为空就什么都不做）。
+function bgmSync() {
+  const B = window.BGM;
+  if (!B) return;
+  try {
+    if (!soundOn) { B.setMuted(true); B.stop(0.06); return; }
+    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    B.attach(audio); B.setMuted(false);
+    B.play(M.dream ? 'dream' : 'normal');
+  } catch (e) {}
+}
 
 // ---------------------------------------------------------------- 物理
 let engine, world;
@@ -2569,6 +2586,7 @@ function start(dream = false, pile = null) {
   if (g !== GRID) { GRID = g; resize(); }   // 缩放的模式（美梦、现在的普通）画布网格加密一倍，见 GRID
   firstDrops = pile ? 4 : 0;               // 带堆进来时不再走开局只出小球的那几个
   newGame(pile); show(null); syncShakeChip(); beep([523, 784], 0.07); if (SHOWCASE) showcase();
+  bgmSync();   // 背景音乐：每次开局按模式切歌（同一首就接着放，不重来；普通 → 美梦淡出再淡入）
   // 「摇一摇」一课不再按开局时间弹：等这局第一颗金豆飞进九宫格、动画放完才弹（grantShake / loop 里记 shakeTutAt）
 }
 
@@ -2760,6 +2778,7 @@ function toMenu(fresh = false) {
   if (GRID !== FINE) { GRID = FINE; resize(); }
   state = 'title'; world = engine = null; effects = []; toast = null; shk = null; fishStop = null; fishQueue.length = 0; thaw = null; fillJob = null; autoFire = false; pointerDown = false;
   show('ovStart'); startSash.show(dreamSave.unlocked, { fresh, delay: fresh ? 420 : 120, quiet: !fresh }); syncShakeChip(); beep([523, 392], 0.06);
+  bgmSync();   // 模式回普通了：在美梦里回来的话，背景音乐切回普通那首
 }
 if (DREAM_TEST) window.dfyStart = (dream = false) => start(dream);   // 控制台直接开一局（测结束页用）
 // ?dream：带着一堆现成的东西开局（[{tier, x, y, angle, gold}]，坐标是该模式的世界坐标），性能测试用——同一堆东西才好比改前改后
@@ -2927,6 +2946,7 @@ const NOTE_ON = false;   // 意见便签总开关（见下方「意见便签」�
   show = (id) => {
     if (id === 'ovStart' || id === 'ovOver') refreshLadder();
     _show(id);
+    if (window.BGM) BGM.setDuck(id !== null && state !== 'title');   // 局内（没有遮罩页）和开始页（含从它点进去的图鉴 / 成就 / 署名）全音量，暂停 / 结束等页面压低
     if (id === 'ovStart') startSash.wake(); else if (id === 'ovOver') overSash.wake(); else if (id === 'ovPause') pauseSash.wake();
     $('noteTab').classList.toggle('show', NOTE_ON && /^ov(Start|Over|Pause)$/.test(id));   // 意见便签：和角落 i 键同进同出（开始/结束/暂停页才有，2026-11-10 用户要求对齐）
     $('tutTab').classList.toggle('show', /^ov(Start|Over|Pause)$/.test(id));    // 教程「?」键：同上
@@ -2945,7 +2965,7 @@ function pause() {
   show('ovPause'); beep([440], 0.05);
   pauseSash.show(!M.dream && dreamSave.unlocked, { quiet: true, cond: () => state === 'paused' });   // 美梦局的暂停页没有（已经在梦里了）
 }
-function resume() { state = 'play'; last = performance.now(); show(null); }
+function resume() { state = 'play'; last = performance.now(); show(null); bgmSync(); }   // bgmSync：手机切后台回来音频环境可能被系统挂起，点「继续」这下用户手势里顺便唤醒
 function openCredit(back) { creditBack = back; show('ovCredit'); }
 
 // ---------------------------------------------------------------- 意见便签
@@ -4665,6 +4685,12 @@ $('bWipeYes').onclick = () => {
   if (window.RESTART) window.RESTART(TX.清空存档.微信重开); else location.reload();
 };
 document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
+
+// 开始页的背景音乐（见「背景音乐」一节）：先试着直接起；浏览器不让自动播放时，AudioContext 挂在那儿，下面这个在任意一次点 / 按时唤醒它。
+// 一直挂着不摘：音频环境之后再被系统挂起 / 打断（iOS 来电等）时，下一次点按也能拉回来；平时每次点按只多读一个 state。
+bgmSync();
+const bgmWake = () => { if (soundOn && audio && audio.state !== 'running') bgmSync(); };
+for (const ev of ['pointerdown', 'touchend', 'mousedown', 'click', 'keydown']) document.addEventListener(ev, bgmWake, true);
 
 requestAnimationFrame(loop);
 
