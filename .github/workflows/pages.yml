@@ -14,12 +14,15 @@ concurrency:
   group: pages
   cancel-in-progress: true
 
+# 上传和部署分成两个 job（同 GitHub 官方 Pages 模板）。原来挤在一个 job 里，部署步骤在上传完成几百毫秒后就去查产物，
+# 偶尔查不到，报 No artifacts named "github-pages"（actions/deploy-pages#451；2026-11-22 连失败两次）。
+# 产物名带上 run_attempt：「全部重跑」会在同一次运行里再传一份，同名会报 Multiple artifacts；
+# 名字经 build 的输出交给 deploy，「只重跑失败的 deploy」时用的还是 build 那次的名字。
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      artifact: ${{ steps.name.outputs.artifact }}
     steps:
       - uses: actions/checkout@v4
       - name: Collect runtime files only
@@ -27,9 +30,22 @@ jobs:
           mkdir _site
           cp -r index.html game.js pixui.js text.js bgm.js vendor sprites _site/
           touch _site/.nojekyll
+      - id: name
+        run: echo "artifact=github-pages-${{ github.run_attempt }}" >> "$GITHUB_OUTPUT"
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
+          name: ${{ steps.name.outputs.artifact }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          artifact_name: ${{ needs.build.outputs.artifact }}
