@@ -9,7 +9,10 @@ Toy 版和网页版的区别全在这里做，源文件不分叉：
 2. index.html 的 <head> 里注入 B站 Toy SDK 和 toy.js（带内容哈希版本号）。
 3. 删掉意见便签的输入框和发送代码（toy-strip 标记之间）：Toy 不许有未经授权的自由输入。
 4. text.js 里署名页的站外链接（CC 许可）只留文字：Toy 不许跳站外。B站 空间链接留着，游戏里走 toy.navigate。
-5. 检查：入口 index.html ≤ 1MB、没有 textarea / fetch、没有站外链接残留。
+5. 正式包（不带 --fake）关掉全部调试网址参数（?debug ?dream ?gold ?showcase ……）：game.js 里读 location.search
+   的地方全换成空串。不关的话，玩家在 Toy 地址后面加 ?debug 就能随便丢大肥鱼刷分，点开排行榜时本地最高分会被交上去。
+   --fake 测试包保留（冒烟测试 tools/smoke_web.cjs 要用 ?debug 的钩子）。
+6. 检查：入口 index.html ≤ 1MB、没有 textarea / fetch、没有站外链接残留、正式包里没有 location.search。
 上传前再用官方预检 toy_doctor.py 过一遍（见 README「B站 Toy 版」）。
 """
 import argparse
@@ -73,6 +76,12 @@ def main():
     js, n = strip_block(p.read_text(encoding='utf-8'), '// <toy-strip>', '// </toy-strip>', 'game.js')
     if n != 1:
         die(f'game.js 里 toy-strip 标记应该正好 1 对，现在 {n} 对')
+    # 正式包：调试网址参数全部失效（见文件头第 5 条）
+    if not args.fake:
+        n = js.count('location.search')
+        if n < 5:
+            die(f'game.js 里只找到 {n} 处 location.search，和预期不符，先看看调试开关是不是改了写法')
+        js = js.replace('location.search', "''")
     p.write_text(js, encoding='utf-8')
 
     # text.js：站外链接只留文字
@@ -95,6 +104,8 @@ def main():
         errs.append(f'入口 index.html {entry} 字节，超过 1MB')
     for name in ('index.html', 'game.js'):
         s = (out / name).read_text(encoding='utf-8')
+        if not args.fake and 'location.search' in s:
+            errs.append(f'{name} 里还有 location.search（正式包不该留调试开关）')
         if re.search(r'<textarea|createElement\([\'"]textarea', s):
             errs.append(f'{name} 里还有 textarea')
         if 'fetch(' in s:
