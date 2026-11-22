@@ -36,7 +36,7 @@ python -m http.server 8731 --bind 127.0.0.1
 ```
 index.html, game.js      游戏本体（所有页面在 index.html，逻辑在 game.js）
 pixui.js                 像素字 / 像素 UI 渲染
-bgm.js                   背景音乐：WebAudio 现场合成的 8-bit 圆舞曲（普通 / 美梦各一首），无音频素材
+bgm.js                   背景音乐：WebAudio 现场合成的 8-bit，无音频素材（开始页、美梦各一首循环；普通局内两首间歇乐章轮流，中间留空白）
 toy.js                   B站 Toy 版的适配层（云存档、排行榜、跳转），只打进 Toy 包
 vendor/matter.min.js     物理引擎 Matter.js
 text.json  →  text.js    全部文案的源头 → 构建生成的 window.TEXT
