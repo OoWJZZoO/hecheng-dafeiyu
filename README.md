@@ -36,7 +36,8 @@ python -m http.server 8731 --bind 127.0.0.1
 ```
 index.html, game.js      游戏本体（所有页面在 index.html，逻辑在 game.js）
 pixui.js                 像素字 / 像素 UI 渲染
-bgm.js                   背景音乐：WebAudio 现场合成的 8-bit，无音频素材（开始页、美梦各一首循环；普通局内两首间歇乐章轮流，中间留空白）
+bgm.js                   背景音乐：全部 WebAudio 现场合成，没有音频文件——开始页一首循环、普通局两首间歇乐章、
+                         美梦两首间歇乐章（乐谱取自 tools/dream_bgm/ 里 Gemini 给的合成脚本）
 toy.js                   B站 Toy 版的适配层（云存档、排行榜、跳转），只打进 Toy 包
 vendor/matter.min.js     物理引擎 Matter.js
 text.json  →  text.js    全部文案的源头 → 构建生成的 window.TEXT
@@ -63,6 +64,7 @@ python tools/build.py
 - 物理：Matter.js 0.20，逻辑固定 60 步/秒，渲染按时间插值，所以 90 / 120 / 144Hz 的屏也不会一顿一顿。
 - 画面：360×704 逻辑分辨率的竖屏，关插值，按先顶到的一边撑满。
 - 音效：WebAudio 现场合成的 8-bit 方波，没有音频素材。
+- 背景音乐同样没有音频素材：开始页和普通局的两首走同一个「事件表 + lookahead」播放器（事件由原来的逐半拍排音一次展开，音色函数没改，逐采样和旧调度一致），美梦两首有自己的混音图（交叉回声、母带低通、结尾淡出）。排音时每个音都夹到未来、单独 try——调度迟到只丢一个音，不会打断整拍、更不会卡死。
 - 性能和帧节奏的取舍、量出来的数据见 [`docs/开发笔记.md`](docs/开发笔记.md)。
 
 ### 意见便签（已关闭）
@@ -71,7 +73,7 @@ python tools/build.py
 
 ## 部署
 
-本仓库推到 `main` 会由 GitHub Actions（[`.github/workflows/pages.yml`](.github/workflows/pages.yml)）自动发布到 GitHub Pages，只打包运行需要的文件（`index.html game.js pixui.js text.js bgm.js vendor sprites`）。fork 后在仓库 Settings → Pages 里把 Source 选成 GitHub Actions 即可。
+本仓库推到 `main` 会由 GitHub Actions（[`.github/workflows/pages.yml`](.github/workflows/pages.yml)）自动发布到 GitHub Pages，只打包运行需要的文件（`index.html game.js pixui.js text.js bgm.js vendor sprites music`）。fork 后在仓库 Settings → Pages 里把 Source 选成 GitHub Actions 即可。
 
 ### B站 Toy 版
 
