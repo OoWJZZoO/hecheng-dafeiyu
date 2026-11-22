@@ -45,6 +45,7 @@ sprites/                 生成物：精灵、背景、成就头像、字模图�
 art/                     GPT 出的原图（绿幕表等），sprites 由它们生成
 tools/                   构建与出图脚本（build.py、make_*.py、perf_web.cjs 性能测量、smoke_web.cjs 冒烟测试）
 docs/                    署名与授权、像素字经验、成就设计、开发笔记
+engine/                  乐谱渲染器剥离版（不含曲目数据）+ 作曲说明 + 试听页，给外部模型作曲用
 ```
 
 ## 改文案

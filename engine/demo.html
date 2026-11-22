@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>乐谱渲染器 · 试听</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 24px; background: #17181c; color: #e8e6e1;
+         font: 14px/1.65 "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif; }
+  h1 { font-size: 19px; margin: 0 0 4px; }
+  .sub { color: #9a9791; font-size: 12.5px; margin: 0 0 16px; }
+  textarea { width: 100%; min-height: 260px; box-sizing: border-box; padding: 12px; border-radius: 8px;
+             background: #101114; color: #d8d5cf; border: 1px solid #2e3138;
+             font: 12px/1.55 ui-monospace, Consolas, monospace; resize: vertical; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 14px 0; }
+  button { padding: 10px 18px; font: inherit; border-radius: 8px; border: 1px solid #33363d;
+           background: #26282f; color: #e8e6e1; cursor: pointer; }
+  button:hover { background: #303339; }
+  #play { background: #2e6b4f; border-color: #3c7d5e; }
+  label { color: #b9b6b0; font-size: 13px; }
+  #out { min-height: 22px; color: #8fb8a4; font-variant-numeric: tabular-nums; }
+  #err { color: #e08b7f; white-space: pre-wrap; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>乐谱渲染器 · 试听 / 离线渲染</h1>
+<p class="sub">把一份 score JSON 贴进下面的框里（格式见 README.md），点「播放」或「离线渲染」。第一次播放需要你点一下按钮，浏览器才允许出声。</p>
+
+<textarea id="score"></textarea>
+
+<div class="row">
+  <button id="play">▶ 播放</button>
+  <button id="stop">⏹ 停止</button>
+  <label><input type="checkbox" id="loop"> 循环</label>
+  <button id="render">离线渲染 + 量响度</button>
+</div>
+
+<div id="out"></div>
+<div id="err"></div>
+
+<script src="bgm-engine.js"></script>
+<script>
+(() => {
+  const EXAMPLE = {
+    total: 12,
+    echo: [0.45, 0.2, 0.9, 0.08],
+    lpf: 9600,
+    fade: [2.5, 1.5],
+    master: 1.0,
+    chime: [0.45, 0.55, 3.0],
+    events: [
+      // 【示例】C 大调：铺底 + 旋律 + 铃音，只是格式演示，不是游戏的曲子
+      ['d', 0.0, 4.0, [130.81, 164.81, 196.0, 261.63], 0.5, 0.12, 1850, 0.28, 0.18, 0.8, 0.4, 0.15, 0.71, 0.71, 0],
+      ['d', 4.0, 4.0, [146.83, 174.61, 220.0, 293.66], 0.5, 0.11, 1850, 0.28, 0.18, 0.8, 0.4, 0.15, 0.71, 0.71, 0],
+      ['d', 8.0, 4.0, [130.81, 164.81, 196.0, 261.63], 0.5, 0.12, 1850, 0.28, 0.18, 0.8, 0.4, 0.15, 0.71, 0.71, 0],
+      ['p', 0.0, 1.5, 659.26, 0.5, 0.20, 5200, 0.01, 0.16, 0.5, 0.08, 0.9, 5.5, 16, 0.25, 0.71, 0.71, 1],
+      ['p', 1.5, 0.5, 783.99, 0.5, 0.18, 5200, 0.008, 0.12, 0.3, 0.06, 1.2, 5.5, 10, 0.2, 0.71, 0.71, 0],
+      ['p', 2.0, 2.0, 880.0, 0.25, 0.19, 5600, 0.01, 0.18, 0.55, 0.1, 0.7, 5.2, 20, 0.3, 0.75, 0.66, 1],
+      ['p', 4.5, 1.0, 587.33, 0.5, 0.20, 5200, 0.008, 0.14, 0.5, 0.07, 0.9, 5.5, 14, 0.2, 0.66, 0.75, 1],
+      ['t', 0.0, 3.5, 65.41, 0.26, 0.006, 0.2, 0.9, 0.3, 0.2, 0.71, 0.71, 0],
+      ['t', 4.0, 3.5, 73.42, 0.24, 0.006, 0.2, 0.9, 0.3, 0.2, 0.71, 0.71, 0],
+      ['c', 3.5, 1.2, 1318.51, 0.13, 4200, 0.005, 0.04, 0.95, 0.08, 0, 0.6, 0.8, 0],
+      ['c', 7.5, 1.2, 1046.5, 0.13, 4200, 0.005, 0.04, 0.95, 0.08, 0, 0.8, 0.6, 0]
+    ]
+  };
+
+  const ta = document.getElementById('score');
+  ta.value = JSON.stringify(EXAMPLE, null, 1);
+  let eng = null;
+  const out = (s) => { document.getElementById('out').textContent = s; };
+  const err = (s) => { document.getElementById('err').textContent = s || ''; };
+
+  function read() {
+    try { const s = JSON.parse(ta.value); err(''); return s; }
+    catch (e) { err('JSON 解析失败：' + e.message); return null; }
+  }
+
+  document.getElementById('play').onclick = () => {
+    const s = read(); if (!s) return;
+    err('');
+    if (!eng) eng = BGMEngine.create();
+    try { eng.play(s, { loop: document.getElementById('loop').checked }); }
+    catch (e) { err('播放失败：' + e.message); return; }
+    BGMEngine.measure(s).then((m) => out(`播放中：${m.duration}s / ${m.events} 个音 / 峰值 ${m.peak}`)).catch(() => {});
+  };
+
+  document.getElementById('stop').onclick = () => { if (eng) eng.stop(0.2); out('已停止'); };
+
+  document.getElementById('render').onclick = async () => {
+    const s = read(); if (!s) return;
+    err('');
+    out('离线渲染中…（一首 2 分钟大约几秒到几十秒）');
+    const t0 = performance.now();
+    try {
+      const m = await BGMEngine.measure(s);
+      out(`离线渲染完成（${((performance.now() - t0) / 1000).toFixed(1)}s）：时长 ${m.duration}s，${m.events} 个音，峰值 ${m.peak}，RMS ${m.rms}`
+        + (m.peak > 0.85 ? '　⚠️ 峰值超过 0.85，把 master 调小' : ''));
+    } catch (e) { err('渲染失败：' + e.message); out(''); }
+  };
+})();
+</script>
+</body>
+</html>
