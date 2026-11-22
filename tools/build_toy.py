@@ -24,7 +24,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SDK = '//s1.hdslb.com/bfs/seed/toy/app/sdk/toy-sdk.js'
-FILES = ['index.html', 'game.js', 'pixui.js', 'text.js', 'bgm.js', 'toy.js', 'vendor', 'sprites']
+FILES = ['index.html', 'game.js', 'pixui.js', 'text.js', 'bgm.js', 'scores.js', 'toy.js', 'vendor', 'sprites']
 ENTRY_MAX = 1024 * 1024
 BILI = re.compile(r'^https?://([\w-]+\.)*bilibili\.com/')
 

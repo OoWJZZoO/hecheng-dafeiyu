@@ -28,7 +28,7 @@ jobs:
       - name: Collect runtime files only
         run: |
           mkdir _site
-          cp -r index.html game.js pixui.js text.js bgm.js vendor sprites _site/
+          cp -r index.html game.js pixui.js text.js bgm.js scores.js vendor sprites _site/
           touch _site/.nojekyll
       - id: name
         run: echo "artifact=github-pages-${{ github.run_attempt }}" >> "$GITHUB_OUTPUT"

@@ -132,7 +132,7 @@ def main():
     set_version('pixui.js', r'(sprites/font\.png)', digest('sprites/font.png'))
     set_version('game.js', r'(sprites/ach\.png)', digest('sprites/ach.png'))   # 成就头像图集（tools/make_ach_icons.py 生成）；先改 game.js 再算 game.js 的哈希
     for f, pat in (('text.js', r'(text\.js)'), ('game.js', r'(game\.js)'), ('pixui.js', r'(pixui\.js)'), ('sprites/shapes.js', r'(sprites/shapes\.js)'),
-                   ('sprites/ach.js', r'(sprites/ach\.js)'), ('bgm.js', r'(bgm\.js)')):
+                   ('sprites/ach.js', r'(sprites/ach\.js)'), ('bgm.js', r'(bgm\.js)'), ('scores.js', r'(scores\.js)')):
         if set_version('index.html', pat, digest(f)):
             print('index.html 里', f, '的版本号换新了')
     print('构建完成')
