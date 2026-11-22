@@ -314,6 +314,9 @@ const SHORT = TX.物品.map(x => x.简称);
 const LOCK_NAME = TX.通用.未解锁名;
 const spriteSrc = (k, gold = false) => `sprites/${gold ? 'g' : 't'}${String(k + 1).padStart(2, '0')}.png?v=${SPRITE_V}`;
 const seenKey = (k, gold) => gold ? 'g' + k : k;   // 图鉴：普通存 k，镀金存 'gk'
+// 开始页进化表：普通图鉴 / 镀金图鉴任意一个解锁就算解锁（2026-11-22 用户要求）。
+// 图鉴本身还是分两页各看各的，这里只影响开始页那 11 格。
+const ladderUnlocked = (k) => seen.has(k) || seen.has('g' + k);
 // 未解锁：只画物品轮廓（剪影，外圈深棕描边）；问号是单独一层（见 fillCell），所有格子同一个，不随物品形状变
 const lockCache = new Map();
 const LOCK_FILL = new Set([2]);                       // 面窝：去掉中间的孔
@@ -475,11 +478,13 @@ const BODY = { px: 12, bold: false, fill: '#4a2e20', outline: null, shadow: fals
 const SCORE_BIG = { px: 20, fill: '#ffe08a', fill2: '#f5a742', hi: '#fff6c8' };
 const LBL = { px: 10, bold: false, fill: '#6b4a36', outline: null, shadow: false, thr: 100 };
 // 开始页进化表和图鉴格子共用：按是否见过填图和名字
-function fillCell(d, k, gold = false) {
-  const sk = seenKey(k, gold), on = seen.has(sk), im = d.querySelector(':scope > img');   // 不能用 querySelector('img')：选中时垫底小牌子里也有一张 img
+function fillCell(d, k, gold = false, anyGold = false) {
+  const sk = seenKey(k, gold);
+  const isOn = () => (anyGold ? ladderUnlocked(k) : seen.has(sk));
+  const on = isOn(), im = d.querySelector(':scope > img');   // 不能用 querySelector('img')：选中时垫底小牌子里也有一张 img
   // canvas 读回或导出不可靠的设备（pixui.js CANVAS_OK）：剪影做不出来，直接贴原图、用 CSS 压成暗色（html.noread img.lk）
   im.classList.toggle('lk', !on && !PX.canvasOk);
-  if (on || !PX.canvasOk) im.src = spriteSrc(k, gold); else lockImg(k, (u) => { if (!seen.has(sk)) im.src = u; }, gold);
+  if (on || !PX.canvasOk) im.src = spriteSrc(k, gold); else lockImg(k, (u) => { if (!isOn()) im.src = u; }, gold);
   im.style.transform = !on && LOCK_NUDGE[k] ? `translate(${LOCK_NUDGE[k]})` : '';
   let q = d.querySelector('.q');
   if (!q) { q = document.createElement('span'); q.className = 'q'; d.appendChild(q); }
@@ -490,7 +495,7 @@ function fillCell(d, k, gold = false) {
 }
 // 重画 11 格要 100 多毫秒（像素字 + 剪影），所以只在图鉴有变化（seen.size 变了）或强制时才重画。原来每次回开始页/结束页都重画，从意见页点「返回」会卡一下（2026-11-10 修）
 let ladderSeen = -1;
-const refreshLadder = (force = false) => { if (!force && ladderSeen === seen.size) return; ladderSeen = seen.size; ladderCells.forEach((d, k) => fillCell(d, k)); };
+const refreshLadder = (force = false) => { if (!force && ladderSeen === seen.size) return; ladderSeen = seen.size; ladderCells.forEach((d, k) => fillCell(d, k, false, true)); };
 fineList.set('q', () => { for (const q of document.querySelectorAll('.q')) q.textContent = ''; refreshLadder(true); dexCells?.forEach((d, k) => fillCell(d, k, dexGold)); });
 refreshLadder();
 // 美梦模式也解锁图鉴（2026-11-11 用户改；成就仍不解锁）。「图鉴集齐」成就 m2 走 unlock()，美梦里被拦住，
